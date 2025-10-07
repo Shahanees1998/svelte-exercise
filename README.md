@@ -2,6 +2,8 @@
 
 Build a simple dashboard application for an imaginary online shop using **SvelteKit** and **Svelte 5**. The goal is to demonstrate common frontend development tasks, including **form handling**, **error management**, **correct HTML structure**, fundamental **CSS styling**, and **CRUD** (Create, Read, Update, Delete) operations.
 
+![Dashboard image](./dashboard.png)
+
 ---
 
 ## Frontend Requirements
