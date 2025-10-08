@@ -25,7 +25,8 @@
 			<p>{emptyMessage}</p>
 		</div>
 	{:else}
-		<div class="table-container">
+		<!-- Desktop Table View -->
+		<div class="table-container desktop-table">
 			<table class="data-table">
 				<thead>
 					<tr>
@@ -61,6 +62,34 @@
 					{/each}
 				</tbody>
 			</table>
+		</div>
+
+		<!-- Mobile Card View -->
+		<div class="mobile-cards">
+			{#each data as item (item.id)}
+				<div class="data-card">
+					<div class="data-card-content">
+						{#each columns as column}
+							<div class="data-card-row">
+								<div class="data-card-label">{column.label}</div>
+								<div class="data-card-value">{@html item[column.key]}</div>
+							</div>
+						{/each}
+					</div>
+					{#if actions.length > 0}
+						<div class="data-card-actions">
+							{#each actions as action}
+								<button 
+									class="btn btn-sm {action.class}" 
+									on:click={() => handleActionClick(action, item)}
+								>
+									{action.label}
+								</button>
+							{/each}
+						</div>
+					{/if}
+				</div>
+			{/each}
 		</div>
 	{/if}
 </div>

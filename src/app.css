@@ -232,6 +232,82 @@ p {
 	background-color: #f8f9fa;
 }
 
+/* Mobile Card View */
+.mobile-cards {
+	display: none;
+}
+
+.data-card {
+	background: white;
+	border: 1px solid #e1e5e9;
+	border-radius: 8px;
+	margin-bottom: 1rem;
+	overflow: hidden;
+	box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+	transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.data-card:hover {
+	box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+	transform: translateY(-2px);
+}
+
+.data-card:last-child {
+	margin-bottom: 0;
+}
+
+.data-card-content {
+	padding: 1rem;
+}
+
+.data-card-row {
+	display: flex;
+	justify-content: space-between;
+	align-items: flex-start;
+	padding: 0.75rem 0;
+	border-bottom: 1px solid #f0f0f0;
+	gap: 1rem;
+}
+
+.data-card-row:first-child {
+	padding-top: 0;
+}
+
+.data-card-row:last-child {
+	border-bottom: none;
+	padding-bottom: 0;
+}
+
+.data-card-label {
+	font-weight: 600;
+	color: #666;
+	font-size: 0.85rem;
+	min-width: 100px;
+	text-transform: uppercase;
+	letter-spacing: 0.5px;
+}
+
+.data-card-value {
+	flex: 1;
+	text-align: right;
+	color: #333;
+	font-size: 0.95rem;
+	word-break: break-word;
+}
+
+.data-card-actions {
+	display: flex;
+	gap: 0.5rem;
+	padding: 0.75rem 1rem;
+	background-color: #f8f9fa;
+	border-top: 1px solid #e1e5e9;
+}
+
+.data-card-actions .btn {
+	flex: 1;
+	justify-content: center;
+}
+
 .user-id {
 	font-weight: 600;
 	color: #667eea;
@@ -413,6 +489,15 @@ p {
 
 	.search-container {
 		max-width: none;
+	}
+
+	/* Hide table, show cards on mobile */
+	.desktop-table {
+		display: none;
+	}
+
+	.mobile-cards {
+		display: block;
 	}
 
 	.data-table {
@@ -732,6 +817,38 @@ p {
 	
 	.page-content {
 		padding: 0.75rem;
+	}
+
+	/* Mobile card optimizations for small screens */
+	.data-card-content {
+		padding: 0.75rem;
+	}
+
+	.data-card-row {
+		flex-direction: column;
+		align-items: flex-start;
+		gap: 0.25rem;
+		padding: 0.5rem 0;
+	}
+
+	.data-card-label {
+		font-size: 0.75rem;
+		min-width: auto;
+	}
+
+	.data-card-value {
+		text-align: left;
+		font-size: 0.9rem;
+		width: 100%;
+	}
+
+	.data-card-actions {
+		padding: 0.5rem 0.75rem;
+		flex-direction: column;
+	}
+
+	.data-card-actions .btn {
+		width: 100%;
 	}
 }
 
