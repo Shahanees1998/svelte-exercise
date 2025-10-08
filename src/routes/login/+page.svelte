@@ -80,22 +80,33 @@
 			<div class="form-group">
 				<label for="password">Password</label>
 				<div class="password-input-container">
-					<input
-						id="password"
-						type="password"
-						bind:value={password}
-						placeholder="Enter your password"
-						required
-						disabled={isLoading}
-						class:show-password={showPassword}
-					/>
+					{#if showPassword}
+						<input
+							id="password"
+							type="text"
+							bind:value={password}
+							placeholder="Enter your password"
+							required
+							disabled={isLoading}
+						/>
+					{:else}
+						<input
+							id="password"
+							type="password"
+							bind:value={password}
+							placeholder="Enter your password"
+							required
+							disabled={isLoading}
+						/>
+					{/if}
 					<button
 						type="button"
 						class="password-toggle"
 						on:click={() => showPassword = !showPassword}
 						disabled={isLoading}
+						title={showPassword ? 'Hide password' : 'Show password'}
 					>
-						{showPassword ? '👁️' : '👁️‍🗨️'}
+						{showPassword ? '🙈' : '👁️'}
 					</button>
 				</div>
 			</div>

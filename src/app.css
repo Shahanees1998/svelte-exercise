@@ -1509,12 +1509,6 @@ p {
 	padding-right: 45px;
 }
 
-.auth-form .password-input-container input.show-password {
-	-webkit-text-security: none;
-	-moz-text-security: none;
-	text-security: none;
-}
-
 .auth-form .password-toggle {
 	position: absolute;
 	right: 12px;

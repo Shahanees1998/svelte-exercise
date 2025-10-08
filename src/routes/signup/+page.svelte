@@ -129,22 +129,33 @@
 			<div class="form-group">
 				<label for="password">Password</label>
 				<div class="password-input-container">
-					<input
-						id="password"
-						type="password"
-						bind:value={password}
-						placeholder="Create a password"
-						required
-						disabled={isLoading}
-						class:show-password={showPassword}
-					/>
+					{#if showPassword}
+						<input
+							id="password"
+							type="text"
+							bind:value={password}
+							placeholder="Create a password"
+							required
+							disabled={isLoading}
+						/>
+					{:else}
+						<input
+							id="password"
+							type="password"
+							bind:value={password}
+							placeholder="Create a password"
+							required
+							disabled={isLoading}
+						/>
+					{/if}
 					<button
 						type="button"
 						class="password-toggle"
 						on:click={() => showPassword = !showPassword}
 						disabled={isLoading}
+						title={showPassword ? 'Hide password' : 'Show password'}
 					>
-						{showPassword ? '👁️' : '👁️‍🗨️'}
+						{showPassword ? '🙈' : '👁️'}
 					</button>
 				</div>
 			</div>
@@ -152,22 +163,33 @@
 			<div class="form-group">
 				<label for="confirmPassword">Confirm Password</label>
 				<div class="password-input-container">
-					<input
-						id="confirmPassword"
-						type="password"
-						bind:value={confirmPassword}
-						placeholder="Confirm your password"
-						required
-						disabled={isLoading}
-						class:show-password={showConfirmPassword}
-					/>
+					{#if showConfirmPassword}
+						<input
+							id="confirmPassword"
+							type="text"
+							bind:value={confirmPassword}
+							placeholder="Confirm your password"
+							required
+							disabled={isLoading}
+						/>
+					{:else}
+						<input
+							id="confirmPassword"
+							type="password"
+							bind:value={confirmPassword}
+							placeholder="Confirm your password"
+							required
+							disabled={isLoading}
+						/>
+					{/if}
 					<button
 						type="button"
 						class="password-toggle"
 						on:click={() => showConfirmPassword = !showConfirmPassword}
 						disabled={isLoading}
+						title={showConfirmPassword ? 'Hide password' : 'Show password'}
 					>
-						{showConfirmPassword ? '👁️' : '👁️‍🗨️'}
+						{showConfirmPassword ? '🙈' : '👁️'}
 					</button>
 				</div>
 			</div>
