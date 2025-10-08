@@ -239,18 +239,18 @@
 			</div>
 		</div>
 
-		<!-- Order Status and Recent Activity Section -->
-		<div class="grid-two-columns">
+		<!-- Order Status Distribution Section -->
+		<div class="chart-full-width">
 			<div class="fade-in-up" style="animation-delay: 250ms">
 				<OrderStatusChart {orderStatusData} />
-			</div>
-			<div class="fade-in-up" style="animation-delay: 300ms">
-				<RecentItemsList title="Recent Users" items={recentUsersData} />
 			</div>
 		</div>
 
 		<!-- Recent Activity Section -->
 		<div class="grid-two-columns">
+			<div class="fade-in-up" style="animation-delay: 300ms">
+				<RecentItemsList title="Recent Users" items={recentUsersData} />
+			</div>
 			<div class="fade-in-up" style="animation-delay: 350ms">
 				<RecentItemsList title="Recent Products" items={recentProductsData} />
 			</div>

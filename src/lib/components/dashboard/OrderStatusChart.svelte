@@ -74,8 +74,8 @@
 
 	.order-status-legend {
 		flex: 1;
-		display: flex;
-		flex-direction: column;
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
 		gap: 16px;
 	}
 
