@@ -2,13 +2,23 @@
 	import { onMount } from 'svelte';
 	import { toast } from '$lib/stores/toast';
 	import { usersStore, type User } from '$lib/stores/data';
-	import { validateEmail, validateRequired } from '$lib/utils/validation';
 	import { createSearchHandler } from '$lib/utils/debounce';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import SearchFilter from '$lib/components/SearchFilter.svelte';
-	import DataTable from '$lib/components/DataTable.svelte';
-	import DeleteModal from '$lib/components/DeleteModal.svelte';
-	import UserFormModal from '$lib/components/UserFormModal.svelte';
+	import { validateUserForm } from '$lib/utils/formValidators';
+	import { 
+		USER_COLUMNS, 
+		TABLE_ACTIONS, 
+		EMPTY_MESSAGES, 
+		SEARCH_PLACEHOLDERS,
+		PAGE_HEADERS,
+		MODAL_TITLES,
+		BUTTON_LABELS,
+		SUCCESS_MESSAGES
+	} from '$lib/config/tableConfigs';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import SearchFilter from '$lib/components/ui/SearchFilter.svelte';
+	import DataTable from '$lib/components/ui/DataTable.svelte';
+	import DeleteModal from '$lib/components/ui/DeleteModal.svelte';
+	import UserFormModal from '$lib/components/users/UserFormModal.svelte';
 
 	let users: User[] = [];
 	let filteredUsers: User[] = [];
@@ -29,23 +39,23 @@
 	};
 
 	// DataTable columns and actions
-	const userColumns = [
-		{ key: 'name', label: 'Name' },
-		{ key: 'email', label: 'Email' },
-		{ key: 'role', label: 'Role' },
-		{ key: 'status', label: 'Status' },
-		{ key: 'createdAt', label: 'Created' }
-	];
+	const userColumns = [...USER_COLUMNS];
 
 	const tableActions = [
-		{ label: 'Edit', class: 'btn-secondary', onClick: (row: any) => {
-			const user = users.find(u => u.id === row.id);
-			if (user) openEditModal(user);
-		}},
-		{ label: 'Delete', class: 'btn-danger', onClick: (row: any) => {
-			const user = users.find(u => u.id === row.id);
-			if (user) openDeleteModal(user);
-		}}
+		{ 
+			...TABLE_ACTIONS.edit, 
+			onClick: (row: any) => {
+				const user = users.find(u => u.id === row.id);
+				if (user) openEditModal(user);
+			}
+		},
+		{ 
+			...TABLE_ACTIONS.delete, 
+			onClick: (row: any) => {
+				const user = users.find(u => u.id === row.id);
+				if (user) openDeleteModal(user);
+			}
+		}
 	];
 
 	function mapUsersToRows(list: User[]) {
@@ -122,20 +132,14 @@
 	}
 
 	function validateForm(): boolean {
-		const nameValidation = validateRequired(formData.name, 'Name');
-		if (!nameValidation.valid) {
-			toast.error(nameValidation.error);
-			return false;
-		}
+		const validation = validateUserForm({
+			name: formData.name,
+			email: formData.email,
+			role: formData.role
+		});
 
-		const emailValidation = validateRequired(formData.email, 'Email');
-		if (!emailValidation.valid) {
-			toast.error(emailValidation.error);
-			return false;
-		}
-
-		if (!validateEmail(formData.email)) {
-			toast.error('Please enter a valid email address');
+		if (!validation.valid) {
+			toast.error(validation.error);
 			return false;
 		}
 
@@ -154,7 +158,7 @@
 
 		usersStore.add(userData);
 		closeModals();
-		toast.success('User created successfully!');
+		toast.success(SUCCESS_MESSAGES.user.created);
 	}
 
 	function handleEditUser() {
@@ -169,7 +173,7 @@
 
 		usersStore.update(selectedUser.id, updates);
 		closeModals();
-		toast.success('User updated successfully!');
+		toast.success(SUCCESS_MESSAGES.user.updated);
 	}
 
 	function handleDeleteUser() {
@@ -177,7 +181,7 @@
 
 		usersStore.remove(selectedUser.id);
 		closeModals();
-		toast.success('User deleted successfully!');
+		toast.success(SUCCESS_MESSAGES.user.deleted);
 	}
 
 </script>
@@ -187,15 +191,15 @@
 </svelte:head>
 
 <PageHeader
-	title="Users"
-	subtitle="Manage user accounts and permissions"
-	buttonText="Add User"
-	buttonIcon="+"
+	title={PAGE_HEADERS.users.title}
+	subtitle={PAGE_HEADERS.users.subtitle}
+	buttonText={PAGE_HEADERS.users.buttonText}
+	buttonIcon={PAGE_HEADERS.users.buttonIcon}
 	onButtonClick={openAddModal}
 />
 
 <SearchFilter
-	searchPlaceholder="Search users by name or email..."
+	searchPlaceholder={SEARCH_PLACEHOLDERS.users}
 	bind:searchValue={searchTerm}
 	{isSearching}
 	on:search={(e) => { searchTerm = e.detail.value; handleSearch(); }}
@@ -206,17 +210,17 @@
 	data={mapUsersToRows(filteredUsers)}
 	actions={tableActions}
 	{isLoading}
-	loadingMessage="Loading users..."
-	emptyMessage={searchTerm ? 'Try adjusting your search criteria' : 'Get started by creating your first user'}
-	emptyIcon="👥"
+	loadingMessage={EMPTY_MESSAGES.users.loading}
+	emptyMessage={searchTerm ? EMPTY_MESSAGES.users.noResults : EMPTY_MESSAGES.users.noData}
+	emptyIcon={EMPTY_MESSAGES.users.icon}
 />
 
 <!-- Add User Modal -->
 {#if showAddModal}
 <UserFormModal
 	bind:isOpen={showAddModal}
-	title="Create New User"
-	submitText="Create User"
+	title={MODAL_TITLES.user.add}
+	submitText={BUTTON_LABELS.user.create}
 	bind:name={formData.name}
 	bind:email={formData.email}
 	bind:role={formData.role}
@@ -232,8 +236,8 @@
 {#key selectedUser.id}
 <UserFormModal
 	bind:isOpen={showEditModal}
-	title="Edit User"
-	submitText="Update User"
+	title={MODAL_TITLES.user.edit}
+	submitText={BUTTON_LABELS.user.update}
 	bind:name={formData.name}
 	bind:email={formData.email}
 	bind:role={formData.role}
@@ -248,7 +252,7 @@
 <!-- Delete User Modal -->
 <DeleteModal
 	bind:isOpen={showDeleteModal}
-	title="Delete User"
+	title={MODAL_TITLES.user.delete}
 	itemName={selectedUser?.name || ''}
 	itemType="user"
 	on:close={closeModals}

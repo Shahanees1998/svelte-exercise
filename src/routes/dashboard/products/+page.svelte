@@ -2,13 +2,24 @@
 	import { onMount } from 'svelte';
 	import { toast } from '$lib/stores/toast';
 	import { productsStore, type Product } from '$lib/stores/data';
-	import { validateRequired, validatePositiveNumber, formatPrice } from '$lib/utils/validation';
+	import { formatPrice } from '$lib/utils/validation';
 	import { createSearchHandler } from '$lib/utils/debounce';
-	import PageHeader from '$lib/components/PageHeader.svelte';
-	import SearchFilter from '$lib/components/SearchFilter.svelte';
-	import DataTable from '$lib/components/DataTable.svelte';
-	import DeleteModal from '$lib/components/DeleteModal.svelte';
-	import ProductFormModal from '$lib/components/ProductFormModal.svelte';
+	import { validateProductForm } from '$lib/utils/formValidators';
+	import { 
+		PRODUCT_COLUMNS, 
+		TABLE_ACTIONS, 
+		EMPTY_MESSAGES, 
+		SEARCH_PLACEHOLDERS,
+		PAGE_HEADERS,
+		MODAL_TITLES,
+		BUTTON_LABELS,
+		SUCCESS_MESSAGES
+	} from '$lib/config/tableConfigs';
+	import PageHeader from '$lib/components/layout/PageHeader.svelte';
+	import SearchFilter from '$lib/components/ui/SearchFilter.svelte';
+	import DataTable from '$lib/components/ui/DataTable.svelte';
+	import DeleteModal from '$lib/components/ui/DeleteModal.svelte';
+	import ProductFormModal from '$lib/components/products/ProductFormModal.svelte';
 
 	let products: Product[] = [];
 	let filteredProducts: Product[] = [];
@@ -31,25 +42,23 @@
 	};
 
 	// DataTable columns and actions
-	const productColumns = [
-		{ key: 'name', label: 'Name' },
-		{ key: 'description', label: 'Description' },
-		{ key: 'price', label: 'Price' },
-		{ key: 'category', label: 'Category' },
-		{ key: 'stock', label: 'Stock' },
-		{ key: 'status', label: 'Status' },
-		{ key: 'createdAt', label: 'Created' }
-	];
+	const productColumns = [...PRODUCT_COLUMNS];
 
 	const tableActions = [
-		{ label: 'Edit', class: 'btn-secondary', onClick: (row: any) => {
-			const product = products.find(p => p.id === row.id);
-			if (product) openEditModal(product);
-		}},
-		{ label: 'Delete', class: 'btn-danger', onClick: (row: any) => {
-			const product = products.find(p => p.id === row.id);
-			if (product) openDeleteModal(product);
-		}}
+		{ 
+			...TABLE_ACTIONS.edit, 
+			onClick: (row: any) => {
+				const product = products.find(p => p.id === row.id);
+				if (product) openEditModal(product);
+			}
+		},
+		{ 
+			...TABLE_ACTIONS.delete, 
+			onClick: (row: any) => {
+				const product = products.find(p => p.id === row.id);
+				if (product) openDeleteModal(product);
+			}
+		}
 	];
 
 	function mapProductsToRows(list: Product[]) {
@@ -130,27 +139,16 @@
 	}
 
 	function validateForm(): boolean {
-		const nameValidation = validateRequired(formData.name, 'Product name');
-		if (!nameValidation.valid) {
-			toast.error(nameValidation.error);
-			return false;
-		}
+		const validation = validateProductForm({
+			name: formData.name,
+			description: formData.description,
+			price: formData.price,
+			stock: formData.stock,
+			category: formData.category
+		});
 
-		const descriptionValidation = validateRequired(formData.description, 'Product description');
-		if (!descriptionValidation.valid) {
-			toast.error(descriptionValidation.error);
-			return false;
-		}
-
-		const priceValidation = validatePositiveNumber(formData.price, 'Price');
-		if (!priceValidation.valid) {
-			toast.error(priceValidation.error);
-			return false;
-		}
-
-		const stockValidation = validatePositiveNumber(formData.stock, 'Stock');
-		if (!stockValidation.valid) {
-			toast.error(stockValidation.error);
+		if (!validation.valid) {
+			toast.error(validation.error);
 			return false;
 		}
 
@@ -171,7 +169,7 @@
 
 		productsStore.add(productData);
 		closeModals();
-		toast.success('Product created successfully!');
+		toast.success(SUCCESS_MESSAGES.product.created);
 	}
 
 	function handleEditProduct() {
@@ -188,7 +186,7 @@
 
 		productsStore.update(selectedProduct.id, updates);
 		closeModals();
-		toast.success('Product updated successfully!');
+		toast.success(SUCCESS_MESSAGES.product.updated);
 	}
 
 	function handleDeleteProduct() {
@@ -196,7 +194,7 @@
 
 		productsStore.remove(selectedProduct.id);
 		closeModals();
-		toast.success('Product deleted successfully!');
+		toast.success(SUCCESS_MESSAGES.product.deleted);
 	}
 
 </script>
@@ -206,15 +204,15 @@
 </svelte:head>
 
 <PageHeader
-	title="Products"
-	subtitle="Manage product catalog and inventory"
-	buttonText="Add Product"
-	buttonIcon="+"
+	title={PAGE_HEADERS.products.title}
+	subtitle={PAGE_HEADERS.products.subtitle}
+	buttonText={PAGE_HEADERS.products.buttonText}
+	buttonIcon={PAGE_HEADERS.products.buttonIcon}
 	onButtonClick={openAddModal}
 />
 
 <SearchFilter
-	searchPlaceholder="Search products by name or description..."
+	searchPlaceholder={SEARCH_PLACEHOLDERS.products}
 	bind:searchValue={searchTerm}
 	{isSearching}
 	on:search={(e) => { searchTerm = e.detail.value; handleSearch(); }}
@@ -225,17 +223,17 @@
 	data={mapProductsToRows(filteredProducts)}
 	actions={tableActions}
 	{isLoading}
-	loadingMessage="Loading products..."
-	emptyMessage={searchTerm ? 'Try adjusting your search criteria' : 'Get started by creating your first product'}
-	emptyIcon="📦"
+	loadingMessage={EMPTY_MESSAGES.products.loading}
+	emptyMessage={searchTerm ? EMPTY_MESSAGES.products.noResults : EMPTY_MESSAGES.products.noData}
+	emptyIcon={EMPTY_MESSAGES.products.icon}
 />
 
 <!-- Add Product Modal -->
 {#if showAddModal}
 <ProductFormModal
 	bind:isOpen={showAddModal}
-	title="Create New Product"
-	submitText="Create Product"
+	title={MODAL_TITLES.product.add}
+	submitText={BUTTON_LABELS.product.create}
 	bind:name={formData.name}
 	bind:description={formData.description}
 	bind:price={formData.price}
@@ -253,8 +251,8 @@
 {#key selectedProduct.id}
 <ProductFormModal
 	bind:isOpen={showEditModal}
-	title="Edit Product"
-	submitText="Update Product"
+	title={MODAL_TITLES.product.edit}
+	submitText={BUTTON_LABELS.product.update}
 	bind:name={formData.name}
 	bind:description={formData.description}
 	bind:price={formData.price}
@@ -271,7 +269,7 @@
 <!-- Delete Product Modal -->
 <DeleteModal
 	bind:isOpen={showDeleteModal}
-	title="Delete Product"
+	title={MODAL_TITLES.product.delete}
 	itemName={selectedProduct?.name || ''}
 	itemType="product"
 	on:close={closeModals}

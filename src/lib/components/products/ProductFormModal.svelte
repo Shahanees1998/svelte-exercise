@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { createEventDispatcher } from 'svelte';
-	import FormModal from './FormModal.svelte';
+	import FormModal from '../forms/FormModal.svelte';
 
 	export let isOpen: boolean = false;
 	export let title: string;

@@ -1,269 +1,260 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { fade, slide } from 'svelte/transition';
 	import { usersStore, productsStore, ordersStore, type User, type Product, type Order } from '$lib/stores/data';
 	import { formatPrice } from '$lib/utils/validation';
+	import { generateRevenueData } from '$lib/utils/chartHelpers';
+	import { 
+		calculateDashboardStats, 
+		getRecentItems, 
+		generateOrderStatusData,
+		type DashboardStats
+	} from '$lib/utils/dataProcessing';
+	import StatCardEnhanced from '$lib/components/dashboard/StatCardEnhanced.svelte';
+	import RevenueChart from '$lib/components/dashboard/RevenueChart.svelte';
+	import OrderStatusChart from '$lib/components/dashboard/OrderStatusChart.svelte';
+	import RecentItemsList from '$lib/components/dashboard/RecentItemsList.svelte';
+	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
+	import RefreshButton from '$lib/components/dashboard/RefreshButton.svelte';
+	import EmptyState from '$lib/components/dashboard/EmptyState.svelte';
 
+	// State management
 	let users: User[] = [];
 	let products: Product[] = [];
 	let orders: Order[] = [];
 	let isLoading = true;
+	let isRefreshing = false;
+	let error: string | null = null;
+	let lastUpdated: Date | null = null;
 
 	// Statistics
-	let totalUsers = 0;
-	let totalProducts = 0;
-	let totalOrders = 0;
-	let totalRevenue = 0;
-	let activeUsers = 0;
-	let activeProducts = 0;
-	let pendingOrders = 0;
-
-	// Recent data
-	let recentUsers: User[] = [];
-	let recentProducts: Product[] = [];
-	let recentOrders: Order[] = [];
+	let stats: DashboardStats = {
+		totalUsers: 0,
+		activeUsers: 0,
+		totalProducts: 0,
+		activeProducts: 0,
+		totalOrders: 0,
+		pendingOrders: 0,
+		totalRevenue: 0,
+		averageOrderValue: 0,
+		revenueGrowth: 0
+	};
 
 	// Chart data
 	let revenueData: { month: string; revenue: number }[] = [];
-	let orderStatusData: { status: string; count: number }[] = [];
+	let orderStatusData: { status: string; count: number; percentage: number }[] = [];
 
+	// Recent data - using derived reactive statements
+	$: recentUsers = getRecentItems(users, 5);
+	$: recentProducts = getRecentItems(products, 5);
+
+	// Check if dashboard has data
+	$: hasData = users.length > 0 || products.length > 0 || orders.length > 0;
+
+	// Stats cards configuration - enhanced with trends
+	$: statsCards = [
+		{
+			icon: '👥',
+			iconClass: 'users',
+			value: stats.totalUsers.toString(),
+			label: 'Total Users',
+			subtitle: `${stats.activeUsers} active`,
+			trend: stats.totalUsers > 0 ? (stats.activeUsers / stats.totalUsers) * 100 - 50 : 0
+		},
+		{
+			icon: '📦',
+			iconClass: 'products',
+			value: stats.totalProducts.toString(),
+			label: 'Total Products',
+			subtitle: `${stats.activeProducts} in stock`,
+			trend: stats.totalProducts > 0 ? (stats.activeProducts / stats.totalProducts) * 100 - 50 : 0
+		},
+		{
+			icon: '📋',
+			iconClass: 'orders',
+			value: stats.totalOrders.toString(),
+			label: 'Total Orders',
+			subtitle: `${stats.pendingOrders} pending`,
+			trend: stats.revenueGrowth
+		},
+		{
+			icon: '💰',
+			iconClass: 'revenue',
+			value: formatPrice(stats.totalRevenue),
+			label: 'Total Revenue',
+			subtitle: `${formatPrice(stats.averageOrderValue)} avg. order`,
+			trend: stats.revenueGrowth
+		}
+	];
+
+	// Transform data for RecentItemsList components
+	$: recentUsersData = recentUsers.map(user => ({
+		id: user.id.toString(),
+		primaryText: user.name,
+		secondaryText: user.email,
+		avatar: user.name.charAt(0).toUpperCase(),
+		createdAt: user.createdAt
+	}));
+
+	$: recentProductsData = recentProducts.map(product => ({
+		id: product.id.toString(),
+		primaryText: product.name,
+		secondaryText: formatPrice(product.price),
+		avatar: '📦',
+		createdAt: product.createdAt
+	}));
+
+	/**
+	 * Initialize dashboard data
+	 */
 	onMount(() => {
-		// Subscribe to all stores
 		const unsubscribeUsers = usersStore.subscribe(value => {
 			users = value;
-			calculateStats();
+			updateDashboard();
 		});
 
 		const unsubscribeProducts = productsStore.subscribe(value => {
 			products = value;
-			calculateStats();
+			updateDashboard();
 		});
 
 		const unsubscribeOrders = ordersStore.subscribe(value => {
 			orders = value;
-			calculateStats();
+			updateDashboard();
 		});
 
-		// Simulate loading
-		setTimeout(() => {
+		// Simulate loading with minimum time for UX
+		const minLoadTime = setTimeout(() => {
 			isLoading = false;
-		}, 1000);
+			lastUpdated = new Date();
+		}, 800);
 
 		return () => {
 			unsubscribeUsers();
 			unsubscribeProducts();
 			unsubscribeOrders();
+			clearTimeout(minLoadTime);
 		};
 	});
 
-	function calculateStats() {
-		// Basic counts
-		totalUsers = users.length;
-		totalProducts = products.length;
-		totalOrders = orders.length;
-
-		// Active counts
-		activeUsers = users.filter(u => u.status === 'active').length;
-		activeProducts = products.filter(p => p.status === 'active').length;
-		pendingOrders = orders.filter(o => o.status === 'pending').length;
-
-		// Revenue calculation
-		totalRevenue = orders
-			.filter(o => o.paymentStatus === 'paid')
-			.reduce((sum, order) => sum + order.totalAmount, 0);
-
-		// Recent data (last 5 items)
-		recentUsers = users
-			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-			.slice(0, 5);
-
-		recentProducts = products
-			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-			.slice(0, 5);
-
-		recentOrders = orders
-			.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
-			.slice(0, 5);
-
-		// Chart data
-		generateRevenueData();
-		generateOrderStatusData();
-	}
-
-	function generateRevenueData() {
-		// Generate sample monthly revenue data
-		const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'];
-		revenueData = months.map(month => ({
-			month,
-			revenue: Math.floor(Math.random() * 50000) + 10000
-		}));
-	}
-
-	function generateOrderStatusData() {
-		const statuses = ['pending', 'processing', 'shipped', 'delivered', 'cancelled'];
-		orderStatusData = statuses.map(status => ({
-			status: status.charAt(0).toUpperCase() + status.slice(1),
-			count: orders.filter(o => o.status === status).length
-		}));
-	}
-
-	// Stats card configuration
-	$: statsCards = [
-		{
-			icon: '👥',
-			iconClass: 'users',
-			value: totalUsers,
-			label: 'Total Users',
-			format: (val: number) => val.toString()
-		},
-		{
-			icon: '📦',
-			iconClass: 'products',
-			value: totalProducts,
-			label: 'Total Products',
-			format: (val: number) => val.toString()
-		},
-		{
-			icon: '📋',
-			iconClass: 'orders',
-			value: totalOrders,
-			label: 'Total Orders',
-			format: (val: number) => val.toString()
-		},
-		{
-			icon: '💰',
-			iconClass: 'revenue',
-			value: totalRevenue,
-			label: 'Total Revenue',
-			format: (val: number) => formatPrice(val)
-		}
-	];
-
-	function getStatusClass(status: string) {
-		switch (status.toLowerCase()) {
-			case 'pending': return 'status-pending';
-			case 'processing': return 'status-processing';
-			case 'shipped': return 'status-shipped';
-			case 'delivered': return 'status-delivered';
-			case 'cancelled': return 'status-cancelled';
-			default: return '';
+	/**
+	 * Update all dashboard calculations
+	 */
+	function updateDashboard() {
+		try {
+			error = null;
+			
+			// Calculate statistics
+			stats = calculateDashboardStats(users, products, orders);
+			
+			// Generate chart data
+			revenueData = generateRevenueData();
+			orderStatusData = generateOrderStatusData(orders);
+			
+		} catch (err) {
+			error = err instanceof Error ? err.message : 'Failed to update dashboard';
+			console.error('Dashboard update error:', err);
 		}
 	}
 
-	function getRoleClass(role: string) {
-		switch (role) {
-			case 'admin': return 'role-admin';
-			case 'manager': return 'role-manager';
-			default: return 'role-user';
-		}
+	/**
+	 * Refresh dashboard data
+	 */
+	async function handleRefresh() {
+		isRefreshing = true;
+		
+		// Simulate refresh delay for UX (in real app, this would be API calls)
+		await new Promise(resolve => setTimeout(resolve, 1000));
+		
+		updateDashboard();
+		lastUpdated = new Date();
+		isRefreshing = false;
 	}
 </script>
 
 <svelte:head>
 	<title>Dashboard Overview - E-Commerce Dashboard</title>
+	<meta name="description" content="View your e-commerce dashboard statistics, revenue, orders, and recent activity" />
 </svelte:head>
 
-{#if isLoading}
-	<div class="loading-state">
-		<div class="loading-spinner"></div>
-		<p>Loading dashboard...</p>
-	</div>
-{:else}
-	<!-- Statistics Cards -->
-	<div class="stats-grid">
-		{#each statsCards as stat}
-			<div class="stat-card">
-				<div class="stat-icon {stat.iconClass}">{stat.icon}</div>
-				<div class="stat-content">
-					<h3>{stat.format(stat.value)}</h3>
-					<p>{stat.label}</p>
-				</div>
-			</div>
-		{/each}
+<div class="dashboard-overview">
+	<!-- Header Section -->
+	<div class="dashboard-header">
+		<div class="header-content">
+			<h1>Dashboard Overview</h1>
+			<p class="header-subtitle">Monitor your business performance and key metrics</p>
+		</div>
+		<RefreshButton 
+			{isRefreshing} 
+			{lastUpdated}
+			on:refresh={handleRefresh}
+		/>
 	</div>
 
-	<!-- Charts and Recent Data -->
-	<div class="charts-section">
-		<!-- Revenue Chart -->
-		<div class="chart-card">
-			<h3>Monthly Revenue</h3>
-			<div class="chart-container">
-				<div class="chart-bars">
-					{#each revenueData as data}
-						<div class="chart-bar">
-							<div 
-								class="bar" 
-								class:bar-height-100={data.revenue === Math.max(...revenueData.map(d => d.revenue))}
-								class:bar-height-80={data.revenue >= Math.max(...revenueData.map(d => d.revenue)) * 0.8}
-								class:bar-height-60={data.revenue >= Math.max(...revenueData.map(d => d.revenue)) * 0.6}
-								class:bar-height-40={data.revenue >= Math.max(...revenueData.map(d => d.revenue)) * 0.4}
-								class:bar-height-20={data.revenue >= Math.max(...revenueData.map(d => d.revenue)) * 0.2}
-							></div>
-							<span class="bar-label">{data.month}</span>
-							<span class="bar-value">{formatPrice(data.revenue)}</span>
-						</div>
-					{/each}
-				</div>
+	{#if isLoading}
+		<div transition:fade={{ duration: 200 }}>
+			<LoadingSpinner text="Loading dashboard..." />
+		</div>
+	{:else if error}
+		<div class="error-container" transition:slide>
+			<div class="error-content">
+				<span class="error-icon">⚠️</span>
+				<h3>Error Loading Dashboard</h3>
+				<p>{error}</p>
+				<button class="btn btn-primary" on:click={handleRefresh}>
+					Try Again
+				</button>
 			</div>
 		</div>
-
-		<!-- Order Status Chart -->
-		<div class="chart-card">
-			<h3>Order Status Distribution</h3>
-			<div class="chart-container">
-				<div class="pie-chart">
-					{#each orderStatusData as data}
-						<div class="pie-segment">
-							<div class="pie-color {getStatusClass(data.status.toLowerCase())}"></div>
-							<span class="pie-label">{data.status}: {data.count}</span>
-						</div>
-					{/each}
-				</div>
-			</div>
+	{:else if !hasData}
+		<div transition:fade>
+			<EmptyState 
+				icon="📊"
+				title="Welcome to Your Dashboard"
+				message="Your dashboard is empty. Start by adding users, products, or orders to see your statistics and analytics."
+			/>
 		</div>
-	</div>
-
-	<!-- Recent Data Tables -->
-	<div class="recent-section">
-		<!-- Recent Users -->
-		<div class="recent-card">
-			<h3>Recent Users</h3>
-			<div class="recent-list">
-				{#each recentUsers as user}
-					<div class="recent-item">
-						<div class="recent-avatar">
-							{user.name.charAt(0).toUpperCase()}
-						</div>
-						<div class="recent-content">
-							<h4>{user.name}</h4>
-							<p>{user.email}</p>
-						</div>
-						<span class="recent-time">
-							{new Date(user.createdAt).toLocaleDateString()}
-						</span>
+	{:else}
+		<div class="dashboard-content" transition:fade={{ duration: 300 }}>
+			<!-- Statistics Cards -->
+			<div class="stats-grid">
+				{#each statsCards as stat, i}
+					<div style="animation-delay: {i * 50}ms" class="fade-in-up">
+						<StatCardEnhanced 
+							icon={stat.icon}
+							iconClass={stat.iconClass}
+							value={stat.value}
+							label={stat.label}
+							subtitle={stat.subtitle}
+							trend={stat.trend}
+						/>
 					</div>
 				{/each}
 			</div>
-		</div>
 
-		<!-- Recent Products -->
-		<div class="recent-card">
-			<h3>Recent Products</h3>
-			<div class="recent-list">
-				{#each recentProducts as product}
-					<div class="recent-item">
-						<div class="recent-avatar">
-							📦
-						</div>
-						<div class="recent-content">
-							<h4>{product.name}</h4>
-							<p>{formatPrice(product.price)}</p>
-						</div>
-						<span class="recent-time">
-							{new Date(product.createdAt).toLocaleDateString()}
-						</span>
-					</div>
-				{/each}
+		<!-- Revenue Chart Section -->
+		<div class="chart-full-width">
+			<div class="fade-in-up" style="animation-delay: 200ms">
+				<RevenueChart {revenueData} />
 			</div>
 		</div>
-	</div>
-{/if}
+
+		<!-- Order Status and Recent Activity Section -->
+		<div class="grid-two-columns">
+			<div class="fade-in-up" style="animation-delay: 250ms">
+				<OrderStatusChart {orderStatusData} />
+			</div>
+			<div class="fade-in-up" style="animation-delay: 300ms">
+				<RecentItemsList title="Recent Users" items={recentUsersData} />
+			</div>
+		</div>
+
+		<!-- Recent Activity Section -->
+		<div class="grid-two-columns">
+			<div class="fade-in-up" style="animation-delay: 350ms">
+				<RecentItemsList title="Recent Products" items={recentProductsData} />
+			</div>
+		</div>
+		</div>
+	{/if}
+</div>

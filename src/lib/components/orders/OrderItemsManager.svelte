@@ -3,7 +3,7 @@
 	import type { OrderItem, Product } from '$lib/stores/data';
 	import { validateRequired, validatePositiveNumber, formatPrice } from '$lib/utils/validation';
 	import { toast } from '$lib/stores/toast';
-	import ProductSearchDropdown from './ProductSearchDropdown.svelte';
+	import ProductSearchDropdown from '../products/ProductSearchDropdown.svelte';
 
 	export let items: OrderItem[] = [];
 	export let idPrefix: string = 'item'; // 'add' or 'edit'
