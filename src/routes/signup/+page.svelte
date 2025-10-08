@@ -155,7 +155,7 @@
 						disabled={isLoading}
 						title={showPassword ? 'Hide password' : 'Show password'}
 					>
-						{showPassword ? '🙈' : '👁️'}
+						{showPassword ? '▣' : '□'}
 					</button>
 				</div>
 			</div>
@@ -189,7 +189,7 @@
 						disabled={isLoading}
 						title={showConfirmPassword ? 'Hide password' : 'Show password'}
 					>
-						{showConfirmPassword ? '🙈' : '👁️'}
+						{showConfirmPassword ? '▣' : '□'}
 					</button>
 				</div>
 			</div>

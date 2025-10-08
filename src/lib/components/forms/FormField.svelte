@@ -63,7 +63,7 @@
 				on:click={togglePassword}
 				{disabled}
 			>
-				{showPassword ? '👁️' : '👁️‍🗨️'}
+				{showPassword ? '□' : '□‍🗨️'}
 			</button>
 		</div>
 	{:else if type === 'email'}
