@@ -137,7 +137,7 @@
 	.auth-form {
 		display: flex;
 		flex-direction: column;
-		gap: var(--space-lg);
+		gap: var(--space-md);
 	}
 	
 	.auth-footer {
