@@ -1,8 +1,11 @@
 <script lang="ts">
-	import { toast } from '$lib/stores/toast';
-	import { onMount } from 'svelte';
+	import { toast } from '$lib/stores/toast.svelte';
 
-	export let toastItem: { id: string; message: string; type: 'success' | 'error' | 'info' | 'warning'; duration?: number };
+	interface Props {
+		toastItem: { id: number; message: string; type: 'success' | 'error' | 'info' | 'warning' };
+	}
+
+	let { toastItem }: Props = $props();
 
 	function handleClose() {
 		toast.remove(toastItem.id);
@@ -29,7 +32,7 @@
 		<span class="toast-icon">{getIcon(toastItem.type)}</span>
 		<span class="toast-message">{toastItem.message}</span>
 	</div>
-	<button class="toast-close" on:click={handleClose} aria-label="Close notification">
+	<button class="toast-close" onclick={handleClose} aria-label="Close notification">
 		×
 	</button>
 </div>

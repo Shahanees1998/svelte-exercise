@@ -1,125 +1,185 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
-	import { toast } from '$lib/stores/toast';
-	import { authStore } from '$lib/stores/auth';
-
-	let email = '';
-	let password = '';
-	let isLoading = false;
-	let showPassword = false;
-
-	function validateEmail(email: string): boolean {
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return emailRegex.test(email);
-	}
-
-	function validatePassword(password: string): boolean {
-		return password.length >= 6;
-	}
-
-	async function handleLogin(event: Event) {
-		event.preventDefault();
+	import { page } from '$app/stores';
+	import { authStore } from '$lib/stores/auth.svelte';
+	import { toast } from '$lib/stores/toast.svelte';
+	
+	// Show success message if redirected from signup
+	$effect(() => {
+		if ($page.url.searchParams.get('signup') === 'success') {
+			toast.success('Account created successfully! Please log in.');
+		}
+	});
+	
+	let email = $state('');
+	let password = $state('');
+	let showPassword = $state(false);
+	let isSubmitting = $state(false);
+	
+	function handleSubmit(e: SubmitEvent) {
+		e.preventDefault();
 		
 		if (!email || !password) {
 			toast.error('Please fill in all fields');
 			return;
 		}
-
-		if (!validateEmail(email)) {
-			toast.error('Please enter a valid email address');
+		
+		if (password.length < 6) {
+			toast.error('Password must be at least 6 characters');
 			return;
 		}
-
-		if (!validatePassword(password)) {
-			toast.error('Password must be at least 6 characters long');
-			return;
-		}
-
-		isLoading = true;
-
-		// Simulate API call delay
+		
+		isSubmitting = true;
+		
+		// Simulate login
 		setTimeout(() => {
-			const result = authStore.login(email, password);
-			
-			isLoading = false;
-			
-			if (result.success) {
-				toast.success('Login successful!');
-				goto('/dashboard');
-			} else {
-				toast.error(result.error || 'Invalid credentials');
-			}
-		}, 1000);
+			// Extract name from email (simple demo)
+			const name = email.split('@')[0];
+			authStore.login(email, name);
+			toast.success('Login successful!');
+			goto('/dashboard/overview');
+		}, 500);
 	}
 </script>
 
 <svelte:head>
-	<title>Login - E-Commerce Dashboard</title>
+	<title>Login - Dashboard</title>
 </svelte:head>
 
-<div class="auth-container">
-	<div class="auth-card">
-		<div class="auth-header">
+<main class="auth-container">
+	<article class="card" style="max-width: 400px; width: 100%;">
+		<header class="auth-header">
 			<h1>Welcome Back</h1>
-			<p>Sign in to your dashboard</p>
-		</div>
-
-		<form on:submit={handleLogin} class="auth-form">
+			<p>Sign in to your account</p>
+		</header>
+		
+		<form class="auth-form" onsubmit={handleSubmit}>
 			<div class="form-group">
 				<label for="email">Email Address</label>
 				<input
 					id="email"
 					type="email"
+					class="form-input"
 					bind:value={email}
-					placeholder="Enter your email"
+					placeholder="you@example.com"
+					disabled={isSubmitting}
 					required
-					disabled={isLoading}
 				/>
 			</div>
-
+			
 			<div class="form-group">
 				<label for="password">Password</label>
 				<div class="password-input-container">
-					{#if showPassword}
-						<input
-							id="password"
-							type="text"
-							bind:value={password}
-							placeholder="Enter your password"
-							required
-							disabled={isLoading}
-						/>
-					{:else}
-						<input
-							id="password"
-							type="password"
-							bind:value={password}
-							placeholder="Enter your password"
-							required
-							disabled={isLoading}
-						/>
-					{/if}
+					<input
+						id="password"
+						type={showPassword ? 'text' : 'password'}
+						class="form-input"
+						bind:value={password}
+						placeholder="Enter your password"
+						disabled={isSubmitting}
+						required
+					/>
 					<button
 						type="button"
 						class="password-toggle"
-						on:click={() => showPassword = !showPassword}
-						disabled={isLoading}
-						title={showPassword ? 'Hide password' : 'Show password'}
+						onclick={() => showPassword = !showPassword}
+						disabled={isSubmitting}
+						aria-label={showPassword ? 'Hide password' : 'Show password'}
 					>
-						{showPassword ? '▣' : '□'}
+						{showPassword ? '👁️' : '👁️‍🗨️'}
 					</button>
 				</div>
 			</div>
-
-			<button type="submit" class="auth-button" disabled={isLoading}>
-				{isLoading ? 'Signing In...' : 'Sign In'}
+			
+			<button 
+				type="submit" 
+				class="btn btn-primary" 
+				style="width: 100%;"
+				disabled={isSubmitting}
+			>
+				{isSubmitting ? 'Signing in...' : 'Sign In'}
 			</button>
 		</form>
+		
+		<footer class="auth-footer">
+			<p>
+				Don't have an account? 
+				<a href="/signup">Sign up</a>
+			</p>
+		</footer>
+	</article>
+</main>
 
-		<div class="auth-footer">
-			<p>Don't have an account? <a href="/signup">Sign up here</a></p>
-		</div>
-	</div>
-</div>
-
-
+<style>
+	.auth-container {
+		min-height: 100vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--gradient-primary);
+		padding: var(--space-xl);
+	}
+	
+	.auth-header {
+		text-align: center;
+		margin-bottom: var(--space-xl);
+	}
+	
+	.auth-header h1 {
+		margin-bottom: var(--space-sm);
+	}
+	
+	.auth-header p {
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+	
+	.auth-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+	
+	.auth-footer {
+		text-align: center;
+		margin-top: var(--space-lg);
+		padding-top: var(--space-lg);
+		border-top: 1px solid var(--color-border-light);
+	}
+	
+	.auth-footer p {
+		margin: 0;
+		color: var(--color-text-secondary);
+	}
+	
+	.password-input-container {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+	
+	.password-input-container input {
+		padding-right: 45px;
+	}
+	
+	.password-toggle {
+		position: absolute;
+		right: 12px;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 8px;
+		font-size: 1.2rem;
+		transition: all var(--transition-base);
+		border-radius: var(--radius-sm);
+	}
+	
+	.password-toggle:hover:not(:disabled) {
+		background-color: var(--color-bg-tertiary);
+	}
+	
+	.password-toggle:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+</style>

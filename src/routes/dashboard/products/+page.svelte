@@ -1,277 +1,174 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from '$lib/stores/toast';
-	import { productsStore, type Product } from '$lib/stores/data';
-	import { formatPrice } from '$lib/utils/validation';
-	import { createSearchHandler } from '$lib/utils/debounce';
-	import { validateProductForm } from '$lib/utils/formValidators';
-	import { 
-		PRODUCT_COLUMNS, 
-		TABLE_ACTIONS, 
-		EMPTY_MESSAGES, 
-		SEARCH_PLACEHOLDERS,
-		PAGE_HEADERS,
-		MODAL_TITLES,
-		BUTTON_LABELS,
-		SUCCESS_MESSAGES
-	} from '$lib/config/tableConfigs';
-	import PageHeader from '$lib/components/layout/PageHeader.svelte';
-	import SearchFilter from '$lib/components/ui/SearchFilter.svelte';
+	import type { PageData } from './$types';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import type { Product } from '$lib/types';
+	import { toast } from '$lib/stores/toast.svelte';
+	import Dialog from '$lib/components/ui/Dialog.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import SearchBar from '$lib/components/ui/SearchBar.svelte';
 	import DataTable from '$lib/components/ui/DataTable.svelte';
-	import DeleteModal from '$lib/components/ui/DeleteModal.svelte';
-	import ProductFormModal from '$lib/components/products/ProductFormModal.svelte';
-
-	let products: Product[] = [];
-	let filteredProducts: Product[] = [];
-	let searchTerm = '';
-	let showAddModal = false;
-	let showEditModal = false;
-	let showDeleteModal = false;
-	let selectedProduct: Product | null = null;
-	let isLoading = false;
-	let isSearching = false;
-
-	// Form data for add/edit
-	let formData = {
-		name: '',
-		description: '',
-		price: 1,
-		category: 'electronics',
-		stock: 1,
-		status: 'active' as 'active' | 'inactive'
-	};
-
-	// DataTable columns and actions
-	const productColumns = [...PRODUCT_COLUMNS];
-
-	const tableActions = [
-		{ 
-			...TABLE_ACTIONS.edit, 
-			onClick: (row: any) => {
-				const product = products.find(p => p.id === row.id);
-				if (product) openEditModal(product);
-			}
-		},
-		{ 
-			...TABLE_ACTIONS.delete, 
-			onClick: (row: any) => {
-				const product = products.find(p => p.id === row.id);
-				if (product) openDeleteModal(product);
-			}
-		}
-	];
-
-	function mapProductsToRows(list: Product[]) {
-		return list.map((product) => ({
-			id: product.id,
-			name: product.name,
-			description: product.description.length > 50 ? product.description.substring(0, 50) + '...' : product.description,
-			price: formatPrice(product.price),
-			category: product.category.charAt(0).toUpperCase() + product.category.slice(1),
-			stock: product.stock.toString(),
-			status: `<span class="status-badge status-${product.status}">${product.status}</span>`,
-			createdAt: product.createdAt
-		}));
-	}
-
-	// Subscribe to store
-	const unsubscribe = productsStore.subscribe(value => {
-		products = value;
-		filterProducts();
-	});
-
-	onMount(() => {
-		isLoading = true;
-		setTimeout(() => {
-			isLoading = false;
-		}, 300);
-
-		return () => {
-			unsubscribe();
-		};
-	});
-
-	function filterProducts() {
-		let filtered = [...products];
-
-		if (searchTerm.trim()) {
-			filtered = filtered.filter(product =>
-				product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-				product.description.toLowerCase().includes(searchTerm.toLowerCase())
-			);
-		}
-
-		filteredProducts = filtered;
-		isSearching = false;
-	}
-
-	// Debounced handlers
-	const debouncedSearch = createSearchHandler(() => {
-		filterProducts();
-	}, 500);
-
-	function handleSearch() {
-		isSearching = true;
-		debouncedSearch();
-	}
-
-	function openAddModal() {
-		formData = { name: '', description: '', price: 1, category: 'electronics', stock: 1, status: 'active' };
-		showAddModal = true;
-	}
-
-	function openEditModal(product: Product) {
-		selectedProduct = product;
-		formData = { name: product.name, description: product.description, price: product.price, category: product.category, stock: product.stock, status: product.status };
-		showEditModal = true;
-	}
-
-	function openDeleteModal(product: Product) {
-		selectedProduct = product;
-		showDeleteModal = true;
-	}
-
-	function closeModals() {
-		showAddModal = false;
-		showEditModal = false;
-		showDeleteModal = false;
+	import ActionButtons from '$lib/components/ui/ActionButtons.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import ProductForm from '$lib/components/forms/ProductForm.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import { productColumns } from '$lib/utils/tableConfigs';
+	import { formatPrice, truncateText } from '$lib/utils/formatters';
+	
+	let { data }: { data: PageData } = $props();
+	
+	let showAddDialog = $state(false);
+	let showEditDialog = $state(false);
+	let showDeleteDialog = $state(false);
+	let selectedProduct = $state<Product | null>(null);
+	
+	function handleFormSuccess(message?: string) {
+		showAddDialog = false;
+		showEditDialog = false;
+		showDeleteDialog = false;
 		selectedProduct = null;
+		toast.success(message || 'Operation successful');
 	}
-
-	function validateForm(): boolean {
-		const validation = validateProductForm({
-			name: formData.name,
-			description: formData.description,
-			price: formData.price,
-			stock: formData.stock,
-			category: formData.category
-		});
-
-		if (!validation.valid) {
-			toast.error(validation.error);
-			return false;
+	
+	function handleFormError(error: string) {
+		toast.error(error);
+	}
+	
+	function handleSearch(search: string) {
+		const url = new URL($page.url);
+		if (search) {
+			url.searchParams.set('search', search);
+		} else {
+			url.searchParams.delete('search');
 		}
-
-		return true;
+		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
-
-	function handleAddProduct() {
-		if (!validateForm()) return;
-
-		const productData = {
-			name: formData.name,
-			description: formData.description,
-			price: formData.price,
-			category: formData.category,
-			stock: formData.stock,
-			status: formData.status
-		};
-
-		productsStore.add(productData);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.product.created);
+	
+	function clearSearch() {
+		goto('/dashboard/products', { keepFocus: true, noScroll: true });
 	}
-
-	function handleEditProduct() {
-		if (!validateForm() || !selectedProduct) return;
-
-		const updates = {
-			name: formData.name,
-			description: formData.description,
-			price: formData.price,
-			category: formData.category,
-			stock: formData.stock,
-			status: formData.status
-		};
-
-		productsStore.update(selectedProduct.id, updates);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.product.updated);
+	
+	function openAddDialog() {
+		selectedProduct = null;
+		showAddDialog = true;
 	}
-
-	function handleDeleteProduct() {
-		if (!selectedProduct) return;
-
-		productsStore.remove(selectedProduct.id);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.product.deleted);
+	
+	function openEditDialog(product: Product) {
+		selectedProduct = product;
+		showEditDialog = true;
 	}
-
+	
+	function openDeleteDialog(product: Product) {
+		selectedProduct = product;
+		showDeleteDialog = true;
+	}
 </script>
 
 <svelte:head>
-	<title>Products - E-Commerce Dashboard</title>
+	<title>Products - Dashboard</title>
 </svelte:head>
 
-<PageHeader
-	title={PAGE_HEADERS.products.title}
-	subtitle={PAGE_HEADERS.products.subtitle}
-	buttonText={PAGE_HEADERS.products.buttonText}
-	buttonIcon={PAGE_HEADERS.products.buttonIcon}
-	onButtonClick={openAddModal}
+<PageHeader 
+	title="Products" 
+	description="Manage your product inventory"
+	actionButton={{
+		label: "+ Add Product",
+		onclick: openAddDialog
+	}}
 />
 
-<SearchFilter
-	searchPlaceholder={SEARCH_PLACEHOLDERS.products}
-	bind:searchValue={searchTerm}
-	{isSearching}
-	on:search={(e) => { searchTerm = e.detail.value; handleSearch(); }}
+<SearchBar 
+	searchValue={data.search}
+	placeholder="Search products..."
+	onSearch={handleSearch}
+	onClear={clearSearch}
 />
 
-<DataTable
+<DataTable 
 	columns={productColumns}
-	data={mapProductsToRows(filteredProducts)}
-	actions={tableActions}
-	{isLoading}
-	loadingMessage={EMPTY_MESSAGES.products.loading}
-	emptyMessage={searchTerm ? EMPTY_MESSAGES.products.noResults : EMPTY_MESSAGES.products.noData}
-	emptyIcon={EMPTY_MESSAGES.products.icon}
-/>
+	data={data.products}
+	keyField="id"
+	emptyMessage="No products found"
+	emptyIcon="📦"
+	emptyDescription={data.search ? 'Try a different search term' : 'Add your first product to get started'}
+>
+	{#snippet rowSnippet(product)}
+		<tr>
+			<td>{product.id}</td>
+			<td><strong>{product.name}</strong></td>
+			<td>{truncateText(product.description, 50)}</td>
+			<td>{formatPrice(product.price)}</td>
+			<td><StatusBadge status={product.category} type="category" /></td>
+			<td>{product.stock}</td>
+			<td><StatusBadge status={product.status} type="status" /></td>
+			<td>
+				<ActionButtons 
+					actions={[
+						{
+							label: "Edit",
+							icon: "✏️",
+							variant: "secondary",
+							onclick: () => openEditDialog(product),
+							'aria-label': `Edit ${product.name}`
+						},
+						{
+							label: "Delete",
+							icon: "🗑️",
+							variant: "danger",
+							onclick: () => openDeleteDialog(product),
+							'aria-label': `Delete ${product.name}`
+						}
+					]}
+				/>
+			</td>
+		</tr>
+	{/snippet}
+</DataTable>
 
-<!-- Add Product Modal -->
-{#if showAddModal}
-<ProductFormModal
-	bind:isOpen={showAddModal}
-	title={MODAL_TITLES.product.add}
-	submitText={BUTTON_LABELS.product.create}
-	bind:name={formData.name}
-	bind:description={formData.description}
-	bind:price={formData.price}
-	bind:category={formData.category}
-	bind:stock={formData.stock}
-	bind:status={formData.status}
-	idPrefix="add"
-	on:close={closeModals}
-	on:submit={handleAddProduct}
-/>
+{#if data.pagination.totalPages > 1}
+	<Pagination 
+		currentPage={data.pagination.currentPage}
+		totalPages={data.pagination.totalPages}
+		totalItems={data.pagination.totalItems}
+		itemsPerPage={data.pagination.itemsPerPage}
+		itemName="products"
+	/>
 {/if}
 
-<!-- Edit Product Modal -->
-{#if showEditModal && selectedProduct}
-{#key selectedProduct.id}
-<ProductFormModal
-	bind:isOpen={showEditModal}
-	title={MODAL_TITLES.product.edit}
-	submitText={BUTTON_LABELS.product.update}
-	bind:name={formData.name}
-	bind:description={formData.description}
-	bind:price={formData.price}
-	bind:category={formData.category}
-	bind:stock={formData.stock}
-	bind:status={formData.status}
-	idPrefix="edit"
-	on:close={closeModals}
-	on:submit={handleEditProduct}
-/>
-{/key}
-{/if}
+<Dialog bind:open={showAddDialog} title="Add New Product">
+	{#snippet children()}
+		<ProductForm 
+			product={null}
+			onCancel={() => showAddDialog = false}
+			isEditing={false}
+			onSuccess={handleFormSuccess}
+			onError={handleFormError}
+		/>
+	{/snippet}
+</Dialog>
 
-<!-- Delete Product Modal -->
-<DeleteModal
-	bind:isOpen={showDeleteModal}
-	title={MODAL_TITLES.product.delete}
-	itemName={selectedProduct?.name || ''}
-	itemType="product"
-	on:close={closeModals}
-	on:confirm={handleDeleteProduct}
+<Dialog bind:open={showEditDialog} title="Edit Product">
+	{#snippet children()}
+		<ProductForm 
+			product={selectedProduct}
+			onCancel={() => showEditDialog = false}
+			isEditing={true}
+			onSuccess={handleFormSuccess}
+			onError={handleFormError}
+		/>
+	{/snippet}
+</Dialog>
+
+<ConfirmDialog 
+	bind:open={showDeleteDialog}
+	title="Delete Product"
+	message="Are you sure you want to delete this product?"
+	itemName={selectedProduct?.name}
+	itemId={selectedProduct?.id}
+	action="?/delete"
+	confirmLabel="Delete Product"
+	onCancel={() => showDeleteDialog = false}
+	onSuccess={handleFormSuccess}
+	onError={handleFormError}
 />

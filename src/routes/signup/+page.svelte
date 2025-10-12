@@ -1,207 +1,212 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { toast } from '$lib/stores/toast';
-	import { authStore } from '$lib/stores/auth';
-
-	let firstName = '';
-	let lastName = '';
-	let email = '';
-	let password = '';
-	let confirmPassword = '';
-	let isLoading = false;
-	let showPassword = false;
-	let showConfirmPassword = false;
-
-	function validateEmail(email: string): boolean {
-		const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-		return emailRegex.test(email);
-	}
-
-	function validatePassword(password: string): boolean {
-		return password.length >= 6;
-	}
-
-	function validateName(name: string): boolean {
-		return name.trim().length >= 2;
-	}
-
-	async function handleSignup(event: Event) {
-		event.preventDefault();
-		
-		if (!firstName || !lastName || !email || !password || !confirmPassword) {
-			toast.error('Please fill in all fields');
-			return;
+	import { enhance } from '$app/forms';
+	import type { ActionData } from './$types';
+	import { toast } from '$lib/stores/toast.svelte';
+	
+	let { form }: { form: ActionData } = $props();
+	
+	let showPassword = $state(false);
+	let showConfirmPassword = $state(false);
+	let isSubmitting = $state(false);
+	
+	// Show error toast when form submission fails
+	$effect(() => {
+		if (form?.error) {
+			toast.error(form.error);
 		}
-
-		if (!validateName(firstName)) {
-			toast.error('First name must be at least 2 characters long');
-			return;
-		}
-
-		if (!validateName(lastName)) {
-			toast.error('Last name must be at least 2 characters long');
-			return;
-		}
-
-		if (!validateEmail(email)) {
-			toast.error('Please enter a valid email address');
-			return;
-		}
-
-		if (!validatePassword(password)) {
-			toast.error('Password must be at least 6 characters long');
-			return;
-		}
-
-		if (password !== confirmPassword) {
-			toast.error('Passwords do not match');
-			return;
-		}
-
-		isLoading = true;
-
-		// Simulate API call delay
-		setTimeout(() => {
-			const result = authStore.register(firstName, lastName, email, password);
-			
-			isLoading = false;
-			
-			if (result.success) {
-				toast.success('Account created successfully! Please sign in.');
-				goto('/login');
-			} else {
-				toast.error(result.error || 'Registration failed');
-			}
-		}, 1000);
-	}
+	});
 </script>
 
 <svelte:head>
-	<title>Sign Up - E-Commerce Dashboard</title>
+	<title>Sign Up - Dashboard</title>
 </svelte:head>
 
-<div class="auth-container">
-	<div class="auth-card">
-		<div class="auth-header">
+<main class="auth-container">
+	<article class="card" style="max-width: 500px; width: 100%;">
+		<header class="auth-header">
 			<h1>Create Account</h1>
-			<p>Join our e-commerce dashboard</p>
-		</div>
-
-		<form on:submit={handleSignup} class="auth-form">
-			<div class="form-row">
-				<div class="form-group">
-					<label for="firstName">First Name</label>
-					<input
-						id="firstName"
-						type="text"
-						bind:value={firstName}
-						placeholder="First name"
-						required
-						disabled={isLoading}
-					/>
-				</div>
-
-				<div class="form-group">
-					<label for="lastName">Last Name</label>
-					<input
-						id="lastName"
-						type="text"
-						bind:value={lastName}
-						placeholder="Last name"
-						required
-						disabled={isLoading}
-					/>
-				</div>
+			<p>Sign up to get started</p>
+		</header>
+		
+		<form 
+			class="auth-form" 
+			method="POST"
+			use:enhance={() => {
+				isSubmitting = true;
+				return async ({ result, update }) => {
+					await update();
+					isSubmitting = false;
+				};
+			}}
+		>
+			<div class="form-group">
+				<label for="name">Full Name</label>
+				<input
+					id="name"
+					name="name"
+					type="text"
+					class="form-input"
+					value={form?.name || ''}
+					placeholder="John Doe"
+					disabled={isSubmitting}
+					required
+					minlength="2"
+				/>
 			</div>
-
+			
 			<div class="form-group">
 				<label for="email">Email Address</label>
 				<input
 					id="email"
+					name="email"
 					type="email"
-					bind:value={email}
-					placeholder="Enter your email"
+					class="form-input"
+					value={form?.email || ''}
+					placeholder="you@example.com"
+					disabled={isSubmitting}
 					required
-					disabled={isLoading}
 				/>
 			</div>
-
+			
 			<div class="form-group">
 				<label for="password">Password</label>
 				<div class="password-input-container">
-					{#if showPassword}
-						<input
-							id="password"
-							type="text"
-							bind:value={password}
-							placeholder="Create a password"
-							required
-							disabled={isLoading}
-						/>
-					{:else}
-						<input
-							id="password"
-							type="password"
-							bind:value={password}
-							placeholder="Create a password"
-							required
-							disabled={isLoading}
-						/>
-					{/if}
+					<input
+						id="password"
+						name="password"
+						type={showPassword ? 'text' : 'password'}
+						class="form-input"
+						placeholder="At least 6 characters (1 letter & 1 number)"
+						disabled={isSubmitting}
+						required
+						minlength="6"
+					/>
 					<button
 						type="button"
 						class="password-toggle"
-						on:click={() => showPassword = !showPassword}
-						disabled={isLoading}
-						title={showPassword ? 'Hide password' : 'Show password'}
+						onclick={() => showPassword = !showPassword}
+						disabled={isSubmitting}
+						aria-label={showPassword ? 'Hide password' : 'Show password'}
 					>
-						{showPassword ? '▣' : '□'}
+						{showPassword ? '👁️' : '👁️‍🗨️'}
 					</button>
 				</div>
 			</div>
-
+			
 			<div class="form-group">
 				<label for="confirmPassword">Confirm Password</label>
 				<div class="password-input-container">
-					{#if showConfirmPassword}
-						<input
-							id="confirmPassword"
-							type="text"
-							bind:value={confirmPassword}
-							placeholder="Confirm your password"
-							required
-							disabled={isLoading}
-						/>
-					{:else}
-						<input
-							id="confirmPassword"
-							type="password"
-							bind:value={confirmPassword}
-							placeholder="Confirm your password"
-							required
-							disabled={isLoading}
-						/>
-					{/if}
+					<input
+						id="confirmPassword"
+						name="confirmPassword"
+						type={showConfirmPassword ? 'text' : 'password'}
+						class="form-input"
+						placeholder="Confirm your password"
+						disabled={isSubmitting}
+						required
+						minlength="6"
+					/>
 					<button
 						type="button"
 						class="password-toggle"
-						on:click={() => showConfirmPassword = !showConfirmPassword}
-						disabled={isLoading}
-						title={showConfirmPassword ? 'Hide password' : 'Show password'}
+						onclick={() => showConfirmPassword = !showConfirmPassword}
+						disabled={isSubmitting}
+						aria-label={showConfirmPassword ? 'Hide password' : 'Show password'}
 					>
-						{showConfirmPassword ? '▣' : '□'}
+						{showConfirmPassword ? '👁️' : '👁️‍🗨️'}
 					</button>
 				</div>
 			</div>
-
-			<button type="submit" class="auth-button" disabled={isLoading}>
-				{isLoading ? 'Creating Account...' : 'Create Account'}
+			
+			<button 
+				type="submit" 
+				class="btn btn-primary" 
+				style="width: 100%;"
+				disabled={isSubmitting}
+			>
+				{isSubmitting ? 'Creating account...' : 'Create Account'}
 			</button>
 		</form>
+		
+		<footer class="auth-footer">
+			<p>
+				Already have an account? 
+				<a href="/login">Sign in</a>
+			</p>
+		</footer>
+	</article>
+</main>
 
-		<div class="auth-footer">
-			<p>Already have an account? <a href="/login">Sign in here</a></p>
-		</div>
-	</div>
-</div>
-
+<style>
+	.auth-container {
+		min-height: 100vh;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		background: var(--gradient-primary);
+		padding: var(--space-xl);
+	}
+	
+	.auth-header {
+		text-align: center;
+		margin-bottom: var(--space-xl);
+	}
+	
+	.auth-header h1 {
+		margin-bottom: var(--space-sm);
+	}
+	
+	.auth-header p {
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+	
+	.auth-form {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+	}
+	
+	.auth-footer {
+		text-align: center;
+		margin-top: var(--space-lg);
+		padding-top: var(--space-lg);
+		border-top: 1px solid var(--color-border-light);
+	}
+	
+	.auth-footer p {
+		margin: 0;
+		color: var(--color-text-secondary);
+	}
+	
+	.password-input-container {
+		position: relative;
+		display: flex;
+		align-items: center;
+	}
+	
+	.password-input-container input {
+		padding-right: 45px;
+	}
+	
+	.password-toggle {
+		position: absolute;
+		right: 12px;
+		background: none;
+		border: none;
+		cursor: pointer;
+		padding: 8px;
+		font-size: 1.2rem;
+		transition: all var(--transition-base);
+		border-radius: var(--radius-sm);
+	}
+	
+	.password-toggle:hover:not(:disabled) {
+		background-color: var(--color-bg-tertiary);
+	}
+	
+	.password-toggle:disabled {
+		opacity: 0.5;
+		cursor: not-allowed;
+	}
+</style>
