@@ -3,7 +3,7 @@
  * Reusable utilities for order processing and calculations
  */
 
-import type { OrderItem } from '$lib/stores/data';
+import type { OrderItem } from '$lib/server/data';
 
 /**
  * Generate a unique order number
@@ -102,7 +102,7 @@ export function getOrderStatusLabel(status: string): string {
  * Get next order status in the workflow
  */
 export function getNextOrderStatus(currentStatus: string): string | null {
-	const statusFlow: Record<string, string> = {
+	const statusFlow: Record<string, string | null> = {
 		'pending': 'processing',
 		'processing': 'shipped',
 		'shipped': 'delivered',

@@ -1,322 +1,395 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { toast } from '$lib/stores/toast';
-	import { ordersStore, type Order, type OrderItem } from '$lib/stores/data';
-	import { formatPrice } from '$lib/utils/validation';
-	import { createSearchHandler } from '$lib/utils/debounce';
-	import { getOrderStatusClass, getPaymentStatusClass } from '$lib/utils/statusHelpers';
-	import { generateOrderNumber, calculateOrderTotal, searchOrders } from '$lib/utils/orderHelpers';
-	import { validateOrderForm } from '$lib/utils/formValidators';
-	import { 
-		ORDER_COLUMNS, 
-		TABLE_ACTIONS, 
-		EMPTY_MESSAGES, 
-		SEARCH_PLACEHOLDERS,
-		PAGE_HEADERS,
-		MODAL_TITLES,
-		BUTTON_LABELS,
-		SUCCESS_MESSAGES
-	} from '$lib/config/tableConfigs';
-	import PageHeader from '$lib/components/layout/PageHeader.svelte';
-	import SearchFilter from '$lib/components/ui/SearchFilter.svelte';
-	import DataTable from '$lib/components/ui/DataTable.svelte';
-	import DeleteModal from '$lib/components/ui/DeleteModal.svelte';
-	import OrderDetailsModal from '$lib/components/orders/OrderDetailsModal.svelte';
-	import OrderFormModal from '$lib/components/orders/OrderFormModal.svelte';
-
-	let orders: Order[] = [];
-	let filteredOrders: Order[] = [];
-	let searchTerm = '';
-	let showAddModal = false;
-	let showEditModal = false;
-	let showDeleteModal = false;
-	let showDetailsModal = false;
-	let selectedOrder: Order | null = null;
-	let isLoading = false;
-	let isSearching = false;
-
-	// Form data for add/edit
-	let formData = {
-		customerName: '',
-		customerEmail: '',
-		items: [] as OrderItem[],
-		status: 'pending' as 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled',
-		paymentStatus: 'unpaid' as 'unpaid' | 'paid' | 'refunded',
-		shippingAddress: ''
-	};
-
-	// DataTable columns and actions
-	const orderColumns = [...ORDER_COLUMNS];
-
-	const tableActions = [
-		{ 
-			...TABLE_ACTIONS.view, 
-			onClick: (row: any) => {
-				const order = orders.find(o => o.id === row.id);
-				if (order) openDetailsModal(order);
-			}
-		},
-		{ 
-			...TABLE_ACTIONS.edit, 
-			onClick: (row: any) => {
-				const order = orders.find(o => o.id === row.id);
-				if (order) openEditModal(order);
-			}
-		},
-		{ 
-			...TABLE_ACTIONS.delete, 
-			onClick: (row: any) => {
-				const order = orders.find(o => o.id === row.id);
-				if (order) openDeleteModal(order);
-			}
+	import type { PageData } from './$types';
+	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
+	import type { Order } from '$lib/server/data';
+	import { toast } from '$lib/stores/toast.svelte';
+	import Dialog from '$lib/components/ui/Dialog.svelte';
+	
+	let { data }: { data: PageData } = $props();
+	
+	let showDetailsDialog = $state(false);
+	let showDeleteDialog = $state(false);
+	let selectedOrder = $state<Order | null>(null);
+	
+	function handleSearch(e: Event) {
+		const form = e.target as HTMLFormElement;
+		const formData = new FormData(form);
+		const search = formData.get('search') as string;
+		const status = formData.get('status') as string;
+		
+		const url = new URL($page.url);
+		if (search) {
+			url.searchParams.set('search', search);
+		} else {
+			url.searchParams.delete('search');
 		}
-	];
-
-	function mapOrdersToRows(list: Order[]) {
-		return list.map((order) => ({
-			id: order.id,
-			orderNumber: order.orderNumber,
-			customerName: order.customerName,
-			customerEmail: order.customerEmail,
-			totalAmount: formatPrice(order.totalAmount),
-			status: `<span class="status-badge ${getOrderStatusClass(order.status)}">${order.status}</span>`,
-			paymentStatus: `<span class=\"payment-badge ${getPaymentStatusClass(order.paymentStatus)}\">${order.paymentStatus}</span>`,
-			createdAt: order.createdAt
-		}));
-	}
-
-	// Subscribe to store
-	const unsubscribe = ordersStore.subscribe(value => {
-		orders = value;
-		filterOrders();
-	});
-
-	onMount(() => {
-		isLoading = true;
-		setTimeout(() => {
-			isLoading = false;
-		}, 300);
-
-		return () => {
-			unsubscribe();
-		};
-	});
-
-	function filterOrders() {
-		filteredOrders = searchOrders(orders, searchTerm);
-		isSearching = false;
-	}
-
-	// Debounced handlers
-	const debouncedSearch = createSearchHandler(() => {
-		filterOrders();
-	}, 500);
-
-	function handleSearch() {
-		isSearching = true;
-		debouncedSearch();
-	}
-
-	function openAddModal() {
-		formData = {
-			customerName: '',
-			customerEmail: '',
-			items: [],
-			status: 'pending',
-			paymentStatus: 'unpaid',
-			shippingAddress: ''
-		};
-		showAddModal = true;
-	}
-
-	function openEditModal(order: Order) {
-		selectedOrder = order;
-		formData = {
-			customerName: order.customerName,
-			customerEmail: order.customerEmail,
-			items: [...order.items],
-			status: order.status,
-			paymentStatus: order.paymentStatus,
-			shippingAddress: order.shippingAddress
-		};
-		showEditModal = true;
-	}
-
-	function openDeleteModal(order: Order) {
-		selectedOrder = order;
-		showDeleteModal = true;
-	}
-
-	function openDetailsModal(order: Order) {
-		selectedOrder = order;
-		showDetailsModal = true;
-	}
-
-	function closeModals() {
-		showAddModal = false;
-		showEditModal = false;
-		showDeleteModal = false;
-		showDetailsModal = false;
-		selectedOrder = null;
-	}
-
-	function validateForm(): boolean {
-		const validation = validateOrderForm({
-			customerName: formData.customerName,
-			customerEmail: formData.customerEmail,
-			items: formData.items,
-			shippingAddress: formData.shippingAddress
-		});
-
-		if (!validation.valid) {
-			toast.error(validation.error);
-			return false;
+		
+		if (status) {
+			url.searchParams.set('status', status);
+		} else {
+			url.searchParams.delete('status');
 		}
-
-		return true;
+		
+		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
-
-	function handleAddOrder(event: CustomEvent) {
-		const data = event.detail;
-		formData = { ...formData, ...data };
-
-		if (!validateForm()) return;
-
-		const orderData = {
-			orderNumber: generateOrderNumber(),
-			customerName: formData.customerName,
-			customerEmail: formData.customerEmail,
-			items: formData.items,
-			totalAmount: calculateOrderTotal(formData.items),
-			status: formData.status,
-			paymentStatus: formData.paymentStatus,
-			shippingAddress: formData.shippingAddress
-		};
-
-		ordersStore.add(orderData);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.order.created);
+	
+	function clearFilters() {
+		goto('/dashboard/orders', { keepFocus: true, noScroll: true });
 	}
-
-	function handleEditOrder(event: CustomEvent) {
-		const data = event.detail;
-		formData = { ...formData, ...data };
-
-		if (!validateForm() || !selectedOrder) return;
-
-		const updates = {
-			customerName: formData.customerName,
-			customerEmail: formData.customerEmail,
-			items: formData.items,
-			totalAmount: calculateOrderTotal(formData.items),
-			status: formData.status,
-			paymentStatus: formData.paymentStatus,
-			shippingAddress: formData.shippingAddress
-		};
-
-		ordersStore.update(selectedOrder.id, updates);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.order.updated);
+	
+	function openDetailsDialog(order: Order) {
+		selectedOrder = order;
+		showDetailsDialog = true;
 	}
-
+	
+	function openDeleteDialog(order: Order) {
+		selectedOrder = order;
+		showDeleteDialog = true;
+	}
+	
 	function handleDeleteOrder() {
 		if (!selectedOrder) return;
-
-		ordersStore.remove(selectedOrder.id);
-		closeModals();
-		toast.success(SUCCESS_MESSAGES.order.deleted);
+		
+		// In a real app, this would call an API endpoint
+		showDeleteDialog = false;
+		toast.success('Order deleted successfully');
+		goto($page.url.toString(), { invalidateAll: true });
+	}
+	
+	function formatPrice(price: number) {
+		return `$${price.toFixed(2)}`;
+	}
+	
+	function getStatusColor(status: string) {
+		const colors: Record<string, string> = {
+			pending: 'status-pending',
+			processing: 'status-processing',
+			shipped: 'status-shipped',
+			delivered: 'status-delivered',
+			cancelled: 'status-cancelled'
+		};
+		return colors[status] || '';
 	}
 </script>
 
 <svelte:head>
-	<title>Orders - E-Commerce Dashboard</title>
+	<title>Orders - Dashboard</title>
 </svelte:head>
 
-<PageHeader
-	title={PAGE_HEADERS.orders.title}
-	subtitle={PAGE_HEADERS.orders.subtitle}
-	buttonText={PAGE_HEADERS.orders.buttonText}
-	buttonIcon={PAGE_HEADERS.orders.buttonIcon}
-	onButtonClick={openAddModal}
-/>
+<div class="page-header">
+	<div>
+		<h1>Orders</h1>
+		<p>Manage customer orders</p>
+	</div>
+</div>
 
-<SearchFilter
-	searchPlaceholder={SEARCH_PLACEHOLDERS.orders}
-	bind:searchValue={searchTerm}
-	{isSearching}
-	on:search={(e) => { searchTerm = e.detail.value; handleSearch(); }}
-/>
+<!-- Search & Filter Form -->
+<form class="search-section" onsubmit={handleSearch}>
+	<div class="filter-container">
+		<input
+			type="search"
+			name="search"
+			class="form-input"
+			placeholder="Search orders..."
+			value={data.search}
+			style="flex: 1; max-width: 400px;"
+		/>
+		
+		<select name="status" class="form-select" value={data.statusFilter}>
+			<option value="">All Status</option>
+			<option value="pending">Pending</option>
+			<option value="processing">Processing</option>
+			<option value="shipped">Shipped</option>
+			<option value="delivered">Delivered</option>
+			<option value="cancelled">Cancelled</option>
+		</select>
+		
+		<button type="submit" class="btn btn-primary btn-sm">
+			🔍 Filter
+		</button>
+		
+		{#if data.search || data.statusFilter}
+			<button type="button" class="btn btn-secondary btn-sm" onclick={clearFilters}>
+				Clear
+			</button>
+		{/if}
+	</div>
+</form>
 
-<DataTable
-	columns={orderColumns}
-	data={mapOrdersToRows(filteredOrders)}
-	actions={tableActions}
-	{isLoading}
-	loadingMessage={EMPTY_MESSAGES.orders.loading}
-	emptyMessage={searchTerm ? EMPTY_MESSAGES.orders.noResults : EMPTY_MESSAGES.orders.noData}
-	emptyIcon={EMPTY_MESSAGES.orders.icon}
-/>
+<!-- Orders Table -->
+<div class="card">
+	{#if data.orders.length === 0}
+		<div class="empty-state">
+			<div class="empty-icon">🛒</div>
+			<h3>No orders found</h3>
+			<p>{data.search || data.statusFilter ? 'Try adjusting your filters' : 'No orders yet'}</p>
+		</div>
+	{:else}
+		<div class="table-container">
+			<table class="data-table">
+				<thead>
+					<tr>
+						<th>Order #</th>
+						<th>Customer</th>
+						<th>Items</th>
+						<th>Total</th>
+						<th>Status</th>
+						<th>Payment</th>
+						<th>Date</th>
+						<th>Actions</th>
+					</tr>
+				</thead>
+				<tbody>
+					{#each data.orders as order (order.id)}
+						<tr>
+							<td><strong>{order.orderNumber}</strong></td>
+							<td>
+								<div>{order.customerName}</div>
+								<div style="font-size: 0.85em; color: var(--color-text-secondary);">{order.customerEmail}</div>
+							</td>
+							<td>{order.items.length} item(s)</td>
+							<td><strong>{formatPrice(order.totalAmount)}</strong></td>
+							<td><span class="badge {getStatusColor(order.status)}">{order.status}</span></td>
+							<td><span class="badge">{order.paymentStatus}</span></td>
+							<td>{order.createdAt}</td>
+							<td>
+								<div class="flex gap-sm">
+									<button 
+										class="btn btn-sm btn-info" 
+										onclick={() => openDetailsDialog(order)}
+									>
+										👁️ View
+									</button>
+									<button 
+										class="btn btn-sm btn-danger" 
+										onclick={() => openDeleteDialog(order)}
+									>
+										🗑️
+									</button>
+								</div>
+							</td>
+						</tr>
+					{/each}
+				</tbody>
+			</table>
+		</div>
+	{/if}
+</div>
 
-<!-- Add Order Modal -->
-{#if showAddModal}
-<OrderFormModal
-	bind:isOpen={showAddModal}
-	title={MODAL_TITLES.order.add}
-	submitText={BUTTON_LABELS.order.create}
-	bind:customerName={formData.customerName}
-	bind:customerEmail={formData.customerEmail}
-	bind:shippingAddress={formData.shippingAddress}
-	bind:items={formData.items}
-	bind:status={formData.status}
-	bind:paymentStatus={formData.paymentStatus}
-	idPrefix="add"
-	on:close={closeModals}
-	on:submit={handleAddOrder}
-/>
-{/if}
+<!-- Order Details Dialog -->
+<Dialog bind:open={showDetailsDialog} title="Order Details">
+	{#snippet children()}
+		{#if selectedOrder}
+			<div class="order-details">
+				<div class="detail-section">
+					<h3>Order Information</h3>
+					<div class="detail-grid">
+						<div>
+							<strong>Order Number:</strong>
+							<div>{selectedOrder.orderNumber}</div>
+						</div>
+						<div>
+							<strong>Date:</strong>
+							<div>{selectedOrder.createdAt}</div>
+						</div>
+						<div>
+							<strong>Status:</strong>
+							<div><span class="badge {getStatusColor(selectedOrder.status)}">{selectedOrder.status}</span></div>
+						</div>
+						<div>
+							<strong>Payment:</strong>
+							<div><span class="badge">{selectedOrder.paymentStatus}</span></div>
+						</div>
+					</div>
+				</div>
+				
+				<div class="detail-section">
+					<h3>Customer Information</h3>
+					<div class="detail-grid">
+						<div>
+							<strong>Name:</strong>
+							<div>{selectedOrder.customerName}</div>
+						</div>
+						<div>
+							<strong>Email:</strong>
+							<div>{selectedOrder.customerEmail}</div>
+						</div>
+						<div style="grid-column: 1 / -1;">
+							<strong>Shipping Address:</strong>
+							<div>{selectedOrder.shippingAddress}</div>
+						</div>
+					</div>
+				</div>
+				
+				<div class="detail-section">
+					<h3>Order Items</h3>
+					<div class="items-list">
+						{#each selectedOrder.items as item}
+							<div class="item-row">
+								<div style="flex: 1;">
+									<strong>{item.productName}</strong>
+									<div style="font-size: 0.85em; color: var(--color-text-secondary);">
+										Qty: {item.quantity} × {formatPrice(item.price)}
+									</div>
+								</div>
+								<div style="font-weight: 600;">
+									{formatPrice(item.quantity * item.price)}
+								</div>
+							</div>
+						{/each}
+						
+						<div class="total-row">
+							<strong>Total:</strong>
+							<strong>{formatPrice(selectedOrder.totalAmount)}</strong>
+						</div>
+					</div>
+				</div>
+			</div>
+			
+			<div class="dialog-footer">
+				<button class="btn btn-secondary" onclick={() => showDetailsDialog = false}>
+					Close
+				</button>
+			</div>
+		{/if}
+	{/snippet}
+</Dialog>
 
-<!-- Edit Order Modal -->
-{#if showEditModal && selectedOrder}
-{#key selectedOrder.id}
-<OrderFormModal
-	bind:isOpen={showEditModal}
-	title={MODAL_TITLES.order.edit}
-	submitText={BUTTON_LABELS.order.update}
-	bind:customerName={formData.customerName}
-	bind:customerEmail={formData.customerEmail}
-	bind:shippingAddress={formData.shippingAddress}
-	bind:items={formData.items}
-	bind:status={formData.status}
-	bind:paymentStatus={formData.paymentStatus}
-	idPrefix="edit"
-	on:close={closeModals}
-	on:submit={handleEditOrder}
-/>
-{/key}
-{/if}
+<!-- Delete Order Dialog -->
+<Dialog bind:open={showDeleteDialog} title="Delete Order">
+	{#snippet children()}
+		<p>Are you sure you want to delete order <strong>{selectedOrder?.orderNumber}</strong>?</p>
+		<p>This action cannot be undone.</p>
+		
+		<div class="dialog-footer">
+			<button class="btn btn-secondary" onclick={() => showDeleteDialog = false}>
+				Cancel
+			</button>
+			<button class="btn btn-danger" onclick={handleDeleteOrder}>
+				Delete Order
+			</button>
+		</div>
+	{/snippet}
+</Dialog>
 
-<!-- Order Details Modal -->
-{#if showDetailsModal && selectedOrder}
-{#key selectedOrder.id}
-<OrderDetailsModal
-	bind:isOpen={showDetailsModal}
-	order={selectedOrder}
-	on:close={closeModals}
-	on:edit={(e) => {
-		closeModals();
-		if (e.detail.order) openEditModal(e.detail.order);
-	}}
-/>
-{/key}
-{/if}
-
-<!-- Delete Order Modal -->
-<DeleteModal
-	bind:isOpen={showDeleteModal}
-	title={MODAL_TITLES.order.delete}
-	itemName={selectedOrder?.orderNumber || ''}
-	itemType="order"
-	on:close={closeModals}
-	on:confirm={handleDeleteOrder}
-/>
-
+<style>
+	.page-header {
+		display: flex;
+		justify-content: space-between;
+		align-items: flex-start;
+		margin-bottom: var(--space-xl);
+	}
+	
+	.page-header h1 {
+		margin-bottom: var(--space-xs);
+	}
+	
+	.page-header p {
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+	
+	.search-section {
+		margin-bottom: var(--space-xl);
+	}
+	
+	.filter-container {
+		display: flex;
+		gap: var(--space-sm);
+		flex-wrap: wrap;
+	}
+	
+	.empty-state {
+		text-align: center;
+		padding: var(--space-2xl) var(--space-xl);
+		color: var(--color-text-secondary);
+	}
+	
+	.empty-icon {
+		font-size: 4rem;
+		margin-bottom: var(--space-md);
+		opacity: 0.5;
+	}
+	
+	.empty-state h3 {
+		margin-bottom: var(--space-sm);
+		color: var(--color-text-primary);
+	}
+	
+	.order-details {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-xl);
+	}
+	
+	.detail-section {
+		border-bottom: 1px solid var(--color-border-light);
+		padding-bottom: var(--space-lg);
+	}
+	
+	.detail-section:last-child {
+		border-bottom: none;
+		padding-bottom: 0;
+	}
+	
+	.detail-section h3 {
+		margin-bottom: var(--space-md);
+		font-size: var(--font-size-lg);
+	}
+	
+	.detail-grid {
+		display: grid;
+		grid-template-columns: repeat(2, 1fr);
+		gap: var(--space-md);
+	}
+	
+	.detail-grid strong {
+		color: var(--color-text-secondary);
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+	}
+	
+	.items-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+		background-color: var(--color-bg-tertiary);
+		padding: var(--space-md);
+		border-radius: var(--radius-md);
+	}
+	
+	.item-row {
+		display: flex;
+		justify-content: space-between;
+		align-items: center;
+		padding: var(--space-sm);
+		background-color: var(--color-bg-primary);
+		border-radius: var(--radius-sm);
+	}
+	
+	.total-row {
+		display: flex;
+		justify-content: space-between;
+		padding: var(--space-sm);
+		border-top: 2px solid var(--color-border-medium);
+		margin-top: var(--space-sm);
+		font-size: var(--font-size-lg);
+	}
+	
+	@media (max-width: 768px) {
+		.filter-container {
+			flex-direction: column;
+		}
+		
+		.filter-container input,
+		.filter-container select {
+			width: 100%;
+			max-width: none !important;
+		}
+		
+		.detail-grid {
+			grid-template-columns: 1fr;
+		}
+	}
+</style>

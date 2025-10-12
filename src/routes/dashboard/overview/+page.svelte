@@ -1,260 +1,419 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { fade, slide } from 'svelte/transition';
-	import { usersStore, productsStore, ordersStore, type User, type Product, type Order } from '$lib/stores/data';
-	import { formatPrice } from '$lib/utils/validation';
-	import { generateRevenueData } from '$lib/utils/chartHelpers';
-	import { 
-		calculateDashboardStats, 
-		getRecentItems, 
-		generateOrderStatusData,
-		type DashboardStats
-	} from '$lib/utils/dataProcessing';
-	import StatCardEnhanced from '$lib/components/dashboard/StatCardEnhanced.svelte';
-	import RevenueChart from '$lib/components/dashboard/RevenueChart.svelte';
-	import OrderStatusChart from '$lib/components/dashboard/OrderStatusChart.svelte';
-	import RecentItemsList from '$lib/components/dashboard/RecentItemsList.svelte';
-	import LoadingSpinner from '$lib/components/ui/LoadingSpinner.svelte';
-	import RefreshButton from '$lib/components/dashboard/RefreshButton.svelte';
-	import EmptyState from '$lib/components/dashboard/EmptyState.svelte';
-
-	// State management
-	let users: User[] = [];
-	let products: Product[] = [];
-	let orders: Order[] = [];
-	let isLoading = true;
-	let isRefreshing = false;
-	let error: string | null = null;
-	let lastUpdated: Date | null = null;
-
-	// Statistics
-	let stats: DashboardStats = {
-		totalUsers: 0,
-		activeUsers: 0,
-		totalProducts: 0,
-		activeProducts: 0,
-		totalOrders: 0,
-		pendingOrders: 0,
-		totalRevenue: 0,
-		averageOrderValue: 0,
-		revenueGrowth: 0
-	};
-
-	// Chart data
-	let revenueData: { month: string; revenue: number }[] = [];
-	let orderStatusData: { status: string; count: number; percentage: number }[] = [];
-
-	// Recent data - using derived reactive statements
-	$: recentUsers = getRecentItems(users, 5);
-	$: recentProducts = getRecentItems(products, 5);
-
-	// Check if dashboard has data
-	$: hasData = users.length > 0 || products.length > 0 || orders.length > 0;
-
-	// Stats cards configuration - enhanced with trends
-	$: statsCards = [
-		{
-			icon: '👥',
-			iconClass: 'users',
-			value: stats.totalUsers.toString(),
-			label: 'Total Users',
-			subtitle: `${stats.activeUsers} active`,
-			trend: stats.totalUsers > 0 ? (stats.activeUsers / stats.totalUsers) * 100 - 50 : 0
-		},
-		{
-			icon: '📦',
-			iconClass: 'products',
-			value: stats.totalProducts.toString(),
-			label: 'Total Products',
-			subtitle: `${stats.activeProducts} in stock`,
-			trend: stats.totalProducts > 0 ? (stats.activeProducts / stats.totalProducts) * 100 - 50 : 0
-		},
-		{
-			icon: '📋',
-			iconClass: 'orders',
-			value: stats.totalOrders.toString(),
-			label: 'Total Orders',
-			subtitle: `${stats.pendingOrders} pending`,
-			trend: stats.revenueGrowth
-		},
-		{
-			icon: '💰',
-			iconClass: 'revenue',
-			value: formatPrice(stats.totalRevenue),
-			label: 'Total Revenue',
-			subtitle: `${formatPrice(stats.averageOrderValue)} avg. order`,
-			trend: stats.revenueGrowth
-		}
-	];
-
-	// Transform data for RecentItemsList components
-	$: recentUsersData = recentUsers.map(user => ({
-		id: user.id.toString(),
-		primaryText: user.name,
-		secondaryText: user.email,
-		avatar: user.name.charAt(0).toUpperCase(),
-		createdAt: user.createdAt
-	}));
-
-	$: recentProductsData = recentProducts.map(product => ({
-		id: product.id.toString(),
-		primaryText: product.name,
-		secondaryText: formatPrice(product.price),
-		avatar: '📦',
-		createdAt: product.createdAt
-	}));
-
-	/**
-	 * Initialize dashboard data
-	 */
-	onMount(() => {
-		const unsubscribeUsers = usersStore.subscribe(value => {
-			users = value;
-			updateDashboard();
-		});
-
-		const unsubscribeProducts = productsStore.subscribe(value => {
-			products = value;
-			updateDashboard();
-		});
-
-		const unsubscribeOrders = ordersStore.subscribe(value => {
-			orders = value;
-			updateDashboard();
-		});
-
-		// Simulate loading with minimum time for UX
-		const minLoadTime = setTimeout(() => {
-			isLoading = false;
-			lastUpdated = new Date();
-		}, 800);
-
-		return () => {
-			unsubscribeUsers();
-			unsubscribeProducts();
-			unsubscribeOrders();
-			clearTimeout(minLoadTime);
-		};
-	});
-
-	/**
-	 * Update all dashboard calculations
-	 */
-	function updateDashboard() {
-		try {
-			error = null;
-			
-			// Calculate statistics
-			stats = calculateDashboardStats(users, products, orders);
-			
-			// Generate chart data
-			revenueData = generateRevenueData();
-			orderStatusData = generateOrderStatusData(orders);
-			
-		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to update dashboard';
-			console.error('Dashboard update error:', err);
-		}
+	import type { PageData } from './$types';
+	
+	let { data }: { data: PageData } = $props();
+	
+	function formatPrice(price: number) {
+		return `$${price.toFixed(2)}`;
 	}
-
-	/**
-	 * Refresh dashboard data
-	 */
-	async function handleRefresh() {
-		isRefreshing = true;
-		
-		// Simulate refresh delay for UX (in real app, this would be API calls)
-		await new Promise(resolve => setTimeout(resolve, 1000));
-		
-		updateDashboard();
-		lastUpdated = new Date();
-		isRefreshing = false;
+	
+	function getInitials(name: string) {
+		return name.split(' ').map(n => n[0]).join('').toUpperCase();
 	}
 </script>
 
 <svelte:head>
-	<title>Dashboard Overview - E-Commerce Dashboard</title>
-	<meta name="description" content="View your e-commerce dashboard statistics, revenue, orders, and recent activity" />
+	<title>Overview - Dashboard</title>
 </svelte:head>
 
-<div class="dashboard-overview">
-	<!-- Header Section -->
-	<div class="dashboard-header">
-		<div class="header-content">
-			<h1>Dashboard Overview</h1>
-			<p class="header-subtitle">Monitor your business performance and key metrics</p>
+<header class="overview-header">
+	<h1>Dashboard Overview</h1>
+	<p>Welcome back! Here's what's happening with your business today.</p>
+</header>
+
+<!-- Stats Grid -->
+<section class="stats-grid" aria-label="Key Statistics">
+	<article class="stat-card">
+		<div class="stat-icon users" aria-hidden="true">👥</div>
+		<div class="stat-content">
+			<h3>Total Users</h3>
+			<div class="stat-value">{data.stats.totalUsers}</div>
+			<p class="stat-subtitle">{data.stats.activeUsers} active</p>
 		</div>
-		<RefreshButton 
-			{isRefreshing} 
-			{lastUpdated}
-			on:refresh={handleRefresh}
-		/>
+	</article>
+	
+	<article class="stat-card">
+		<div class="stat-icon products" aria-hidden="true">📦</div>
+		<div class="stat-content">
+			<h3>Total Products</h3>
+			<div class="stat-value">{data.stats.totalProducts}</div>
+			<p class="stat-subtitle">{data.stats.activeProducts} active</p>
+		</div>
+	</article>
+	
+	<article class="stat-card">
+		<div class="stat-icon orders" aria-hidden="true">🛒</div>
+		<div class="stat-content">
+			<h3>Total Orders</h3>
+			<div class="stat-value">{data.stats.totalOrders}</div>
+			<p class="stat-subtitle">{data.stats.pendingOrders} pending</p>
+		</div>
+	</article>
+	
+	<article class="stat-card">
+		<div class="stat-icon revenue" aria-hidden="true">💰</div>
+		<div class="stat-content">
+			<h3>Total Revenue</h3>
+			<div class="stat-value">{formatPrice(data.stats.totalRevenue)}</div>
+			<p class="stat-subtitle">All time</p>
+		</div>
+	</article>
+</section>
+
+<!-- Order Status Chart -->
+<section class="card" aria-labelledby="order-status-heading">
+	<h2 id="order-status-heading">Order Status Distribution</h2>
+	<div class="status-grid">
+		<div class="status-item">
+			<div class="status-label status-pending">⏳ Pending</div>
+			<div class="status-value">{data.stats.pendingOrders}</div>
+			<div class="status-bar">
+				<div 
+					class="status-fill status-pending" 
+					style="width: {data.stats.totalOrders ? (data.stats.pendingOrders / data.stats.totalOrders * 100) : 0}%"
+				></div>
+			</div>
+		</div>
+		
+		<div class="status-item">
+			<div class="status-label status-processing">🔄 Processing</div>
+			<div class="status-value">{data.stats.processingOrders}</div>
+			<div class="status-bar">
+				<div 
+					class="status-fill status-processing" 
+					style="width: {data.stats.totalOrders ? (data.stats.processingOrders / data.stats.totalOrders * 100) : 0}%"
+				></div>
+			</div>
+		</div>
+		
+		<div class="status-item">
+			<div class="status-label status-shipped">📦 Shipped</div>
+			<div class="status-value">{data.stats.shippedOrders}</div>
+			<div class="status-bar">
+				<div 
+					class="status-fill status-shipped" 
+					style="width: {data.stats.totalOrders ? (data.stats.shippedOrders / data.stats.totalOrders * 100) : 0}%"
+				></div>
+			</div>
+		</div>
+		
+		<div class="status-item">
+			<div class="status-label status-delivered">✅ Delivered</div>
+			<div class="status-value">{data.stats.deliveredOrders}</div>
+			<div class="status-bar">
+				<div 
+					class="status-fill status-delivered" 
+					style="width: {data.stats.totalOrders ? (data.stats.deliveredOrders / data.stats.totalOrders * 100) : 0}%"
+				></div>
+			</div>
+		</div>
+		
+		<div class="status-item">
+			<div class="status-label status-cancelled">❌ Cancelled</div>
+			<div class="status-value">{data.stats.cancelledOrders}</div>
+			<div class="status-bar">
+				<div 
+					class="status-fill status-cancelled" 
+					style="width: {data.stats.totalOrders ? (data.stats.cancelledOrders / data.stats.totalOrders * 100) : 0}%"
+				></div>
+			</div>
+		</div>
 	</div>
+</section>
 
-	{#if isLoading}
-		<div transition:fade={{ duration: 200 }}>
-			<LoadingSpinner text="Loading dashboard..." />
-		</div>
-	{:else if error}
-		<div class="error-container" transition:slide>
-			<div class="error-content">
-				<span class="error-icon">⚠️</span>
-				<h3>Error Loading Dashboard</h3>
-				<p>{error}</p>
-				<button class="btn btn-primary" on:click={handleRefresh}>
-					Try Again
-				</button>
-			</div>
-		</div>
-	{:else if !hasData}
-		<div transition:fade>
-			<EmptyState 
-				icon="📊"
-				title="Welcome to Your Dashboard"
-				message="Your dashboard is empty. Start by adding users, products, or orders to see your statistics and analytics."
-			/>
-		</div>
-	{:else}
-		<div class="dashboard-content" transition:fade={{ duration: 300 }}>
-			<!-- Statistics Cards -->
-			<div class="stats-grid">
-				{#each statsCards as stat, i}
-					<div style="animation-delay: {i * 50}ms" class="fade-in-up">
-						<StatCardEnhanced 
-							icon={stat.icon}
-							iconClass={stat.iconClass}
-							value={stat.value}
-							label={stat.label}
-							subtitle={stat.subtitle}
-							trend={stat.trend}
-						/>
-					</div>
+<!-- Recent Activity -->
+<section class="activity-grid" aria-label="Recent Activity">
+	<article class="card">
+		<h2>Recent Orders</h2>
+		{#if data.recentOrders.length === 0}
+			<p class="empty-text">No recent orders</p>
+		{:else}
+			<ul class="activity-list">
+				{#each data.recentOrders as order}
+					<li class="activity-item">
+						<div class="activity-icon" aria-hidden="true">🛒</div>
+						<div class="activity-content">
+							<div class="activity-title">{order.orderNumber}</div>
+							<div class="activity-subtitle">{order.customerName} • {formatPrice(order.totalAmount)}</div>
+						</div>
+						<span class="badge status-{order.status}">{order.status}</span>
+					</li>
 				{/each}
-			</div>
+			</ul>
+		{/if}
+	</article>
+	
+	<article class="card">
+		<h2>Recent Users</h2>
+		{#if data.recentUsers.length === 0}
+			<p class="empty-text">No recent users</p>
+		{:else}
+			<ul class="activity-list">
+				{#each data.recentUsers as user}
+					<li class="activity-item">
+						<div class="user-avatar-small">
+							{getInitials(user.name)}
+						</div>
+						<div class="activity-content">
+							<div class="activity-title">{user.name}</div>
+							<div class="activity-subtitle">{user.email}</div>
+						</div>
+						<span class="badge status-{user.status}">{user.status}</span>
+					</li>
+				{/each}
+			</ul>
+		{/if}
+	</article>
+</section>
 
-		<!-- Revenue Chart Section -->
-		<div class="chart-full-width">
-			<div class="fade-in-up" style="animation-delay: 200ms">
-				<RevenueChart {revenueData} />
-			</div>
-		</div>
-
-		<!-- Order Status Distribution Section -->
-		<div class="chart-full-width">
-			<div class="fade-in-up" style="animation-delay: 250ms">
-				<OrderStatusChart {orderStatusData} />
-			</div>
-		</div>
-
-		<!-- Recent Activity Section -->
-		<div class="grid-two-columns">
-			<div class="fade-in-up" style="animation-delay: 300ms">
-				<RecentItemsList title="Recent Users" items={recentUsersData} />
-			</div>
-			<div class="fade-in-up" style="animation-delay: 350ms">
-				<RecentItemsList title="Recent Products" items={recentProductsData} />
-			</div>
-		</div>
-		</div>
-	{/if}
-</div>
+<style>
+	.overview-header {
+		margin-bottom: var(--space-2xl);
+	}
+	
+	.overview-header h1 {
+		margin-bottom: var(--space-xs);
+	}
+	
+	.overview-header p {
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+	
+	.stats-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+		gap: var(--space-xl);
+		margin-bottom: var(--space-2xl);
+	}
+	
+	.stat-card {
+		background: var(--color-bg-primary);
+		border-radius: var(--radius-xl);
+		padding: var(--space-xl);
+		box-shadow: var(--shadow-md);
+		display: flex;
+		align-items: center;
+		gap: var(--space-lg);
+		transition: transform var(--transition-base), box-shadow var(--transition-base);
+	}
+	
+	.stat-card:hover {
+		transform: translateY(-4px);
+		box-shadow: var(--shadow-lg);
+	}
+	
+	.stat-icon {
+		width: 60px;
+		height: 60px;
+		border-radius: var(--radius-lg);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 2rem;
+		flex-shrink: 0;
+	}
+	
+	.stat-icon.users {
+		background: var(--gradient-primary);
+	}
+	
+	.stat-icon.products {
+		background: var(--gradient-danger);
+	}
+	
+	.stat-icon.orders {
+		background: var(--gradient-info);
+	}
+	
+	.stat-icon.revenue {
+		background: var(--gradient-success);
+	}
+	
+	.stat-content h3 {
+		font-size: var(--font-size-sm);
+		font-weight: 500;
+		color: var(--color-text-secondary);
+		margin-bottom: var(--space-xs);
+	}
+	
+	.stat-value {
+		font-size: 2rem;
+		font-weight: 700;
+		color: var(--color-text-primary);
+		line-height: 1;
+	}
+	
+	.stat-subtitle {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+		margin: var(--space-xs) 0 0 0;
+	}
+	
+	.card {
+		background: var(--color-bg-primary);
+		border-radius: var(--radius-xl);
+		padding: var(--space-xl);
+		box-shadow: var(--shadow-md);
+		margin-bottom: var(--space-xl);
+	}
+	
+	.card h2 {
+		margin-bottom: var(--space-lg);
+		font-size: var(--font-size-xl);
+	}
+	
+	.status-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+		gap: var(--space-lg);
+	}
+	
+	.status-item {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-sm);
+	}
+	
+	.status-label {
+		font-size: var(--font-size-sm);
+		font-weight: 600;
+		padding: var(--space-xs) var(--space-sm);
+		border-radius: var(--radius-sm);
+		display: inline-block;
+		width: fit-content;
+	}
+	
+	.status-value {
+		font-size: var(--font-size-2xl);
+		font-weight: 700;
+		color: var(--color-text-primary);
+	}
+	
+	.status-bar {
+		height: 8px;
+		background-color: var(--color-gray-200);
+		border-radius: var(--radius-full);
+		overflow: hidden;
+	}
+	
+	.status-fill {
+		height: 100%;
+		border-radius: var(--radius-full);
+		transition: width 500ms ease;
+	}
+	
+	.status-fill.status-pending {
+		background-color: #fbbf24;
+	}
+	
+	.status-fill.status-processing {
+		background-color: #3b82f6;
+	}
+	
+	.status-fill.status-shipped {
+		background-color: #06b6d4;
+	}
+	
+	.status-fill.status-delivered {
+		background-color: #10b981;
+	}
+	
+	.status-fill.status-cancelled {
+		background-color: #ef4444;
+	}
+	
+	.activity-grid {
+		display: grid;
+		grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+		gap: var(--space-xl);
+	}
+	
+	.activity-list {
+		display: flex;
+		flex-direction: column;
+		gap: var(--space-md);
+		list-style: none;
+		padding: 0;
+		margin: 0;
+	}
+	
+	.activity-item {
+		display: flex;
+		align-items: center;
+		gap: var(--space-md);
+		padding: var(--space-md);
+		background-color: var(--color-bg-secondary);
+		border-radius: var(--radius-md);
+		transition: background-color var(--transition-base);
+	}
+	
+	.activity-item:hover {
+		background-color: var(--color-bg-tertiary);
+	}
+	
+	.activity-icon {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--gradient-primary);
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-size: 1.25rem;
+		flex-shrink: 0;
+	}
+	
+	.user-avatar-small {
+		width: 40px;
+		height: 40px;
+		border-radius: 50%;
+		background: var(--gradient-primary);
+		color: white;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		font-weight: 600;
+		font-size: var(--font-size-sm);
+		flex-shrink: 0;
+	}
+	
+	.activity-content {
+		flex: 1;
+		min-width: 0;
+	}
+	
+	.activity-title {
+		font-weight: 600;
+		color: var(--color-text-primary);
+		margin-bottom: var(--space-xs);
+	}
+	
+	.activity-subtitle {
+		font-size: var(--font-size-sm);
+		color: var(--color-text-secondary);
+	}
+	
+	.empty-text {
+		text-align: center;
+		color: var(--color-text-secondary);
+		padding: var(--space-xl);
+	}
+	
+	@media (max-width: 768px) {
+		.stats-grid {
+			grid-template-columns: 1fr;
+			gap: var(--space-md);
+		}
+		
+		.status-grid {
+			grid-template-columns: 1fr;
+			gap: var(--space-md);
+		}
+		
+		.activity-grid {
+			grid-template-columns: 1fr;
+			gap: var(--space-md);
+		}
+	}
+</style>
