@@ -1,7 +1,15 @@
 <script lang="ts">
 	import { goto } from '$app/navigation';
+	import { page } from '$app/stores';
 	import { authStore } from '$lib/stores/auth.svelte';
 	import { toast } from '$lib/stores/toast.svelte';
+	
+	// Show success message if redirected from signup
+	$effect(() => {
+		if ($page.url.searchParams.get('signup') === 'success') {
+			toast.success('Account created successfully! Please log in.');
+		}
+	});
 	
 	let email = $state('');
 	let password = $state('');

@@ -1,43 +1,20 @@
 <script lang="ts">
-	import { goto } from '$app/navigation';
-	import { authStore } from '$lib/stores/auth.svelte';
+	import { enhance } from '$app/forms';
+	import type { ActionData } from './$types';
 	import { toast } from '$lib/stores/toast.svelte';
 	
-	let name = $state('');
-	let email = $state('');
-	let password = $state('');
-	let confirmPassword = $state('');
+	let { form }: { form: ActionData } = $props();
+	
 	let showPassword = $state(false);
 	let showConfirmPassword = $state(false);
 	let isSubmitting = $state(false);
 	
-	function handleSubmit(e: SubmitEvent) {
-		e.preventDefault();
-		
-		if (!name || !email || !password || !confirmPassword) {
-			toast.error('Please fill in all fields');
-			return;
+	// Show error toast when form submission fails
+	$effect(() => {
+		if (form?.error) {
+			toast.error(form.error);
 		}
-		
-		if (password.length < 6) {
-			toast.error('Password must be at least 6 characters');
-			return;
-		}
-		
-		if (password !== confirmPassword) {
-			toast.error('Passwords do not match');
-			return;
-		}
-		
-		isSubmitting = true;
-		
-		// Simulate signup
-		setTimeout(() => {
-			authStore.login(email, name);
-			toast.success('Account created successfully!');
-			goto('/dashboard/overview');
-		}, 500);
-	}
+	});
 </script>
 
 <svelte:head>
@@ -51,17 +28,29 @@
 			<p>Sign up to get started</p>
 		</header>
 		
-		<form class="auth-form" onsubmit={handleSubmit}>
+		<form 
+			class="auth-form" 
+			method="POST"
+			use:enhance={() => {
+				isSubmitting = true;
+				return async ({ result, update }) => {
+					await update();
+					isSubmitting = false;
+				};
+			}}
+		>
 			<div class="form-group">
 				<label for="name">Full Name</label>
 				<input
 					id="name"
+					name="name"
 					type="text"
 					class="form-input"
-					bind:value={name}
+					value={form?.name || ''}
 					placeholder="John Doe"
 					disabled={isSubmitting}
 					required
+					minlength="2"
 				/>
 			</div>
 			
@@ -69,9 +58,10 @@
 				<label for="email">Email Address</label>
 				<input
 					id="email"
+					name="email"
 					type="email"
 					class="form-input"
-					bind:value={email}
+					value={form?.email || ''}
 					placeholder="you@example.com"
 					disabled={isSubmitting}
 					required
@@ -83,12 +73,13 @@
 				<div class="password-input-container">
 					<input
 						id="password"
+						name="password"
 						type={showPassword ? 'text' : 'password'}
 						class="form-input"
-						bind:value={password}
-						placeholder="At least 6 characters"
+						placeholder="At least 6 characters (1 letter & 1 number)"
 						disabled={isSubmitting}
 						required
+						minlength="6"
 					/>
 					<button
 						type="button"
@@ -107,12 +98,13 @@
 				<div class="password-input-container">
 					<input
 						id="confirmPassword"
+						name="confirmPassword"
 						type={showConfirmPassword ? 'text' : 'password'}
 						class="form-input"
-						bind:value={confirmPassword}
 						placeholder="Confirm your password"
 						disabled={isSubmitting}
 						required
+						minlength="6"
 					/>
 					<button
 						type="button"

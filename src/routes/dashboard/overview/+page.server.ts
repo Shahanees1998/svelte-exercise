@@ -6,7 +6,6 @@ export const load: PageServerLoad = () => {
 	const products = dataService.getProducts();
 	const orders = dataService.getOrders();
 
-	// Calculate stats
 	const stats = {
 		totalUsers: users.length,
 		activeUsers: users.filter(u => u.status === 'active').length,
@@ -21,7 +20,6 @@ export const load: PageServerLoad = () => {
 		cancelledOrders: orders.filter(o => o.status === 'cancelled').length
 	};
 
-	// Recent activity
 	const recentOrders = [...orders]
 		.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
 		.slice(0, 5);

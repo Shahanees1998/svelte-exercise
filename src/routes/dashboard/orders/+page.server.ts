@@ -1,31 +1,38 @@
 import { dataService } from '$lib/server/data';
-import type { PageServerLoad } from './$types';
+import type { PageServerLoad, Actions } from './$types';
+import { fail } from '@sveltejs/kit';
 
 export const load: PageServerLoad = ({ url }) => {
 	const search = url.searchParams.get('search') || '';
-	const statusFilter = url.searchParams.get('status') || '';
+	const page = parseInt(url.searchParams.get('page') || '1');
+	const limit = 10;
 	
-	let orders = dataService.getOrders();
-	
-	// Filter by search term
-	if (search) {
-		orders = orders.filter(o => 
-			o.orderNumber.toLowerCase().includes(search.toLowerCase()) ||
-			o.customerName.toLowerCase().includes(search.toLowerCase()) ||
-			o.customerEmail.toLowerCase().includes(search.toLowerCase())
-		);
-	}
-	
-	// Filter by status
-	if (statusFilter) {
-		orders = orders.filter(o => o.status === statusFilter);
-	}
+	const result = dataService.getOrdersPaginated({ page, limit, search });
 
 	return {
-		orders,
+		orders: result.data,
 		search,
-		statusFilter
+		pagination: result.pagination
 	};
+};
+
+export const actions: Actions = {
+	delete: async ({ request }) => {
+		const formData = await request.formData();
+		const id = parseInt(formData.get('id') as string);
+
+		if (!id) {
+			return fail(400, { error: 'Order ID is required' });
+		}
+
+		const deleted = dataService.deleteOrder(id);
+
+		if (!deleted) {
+			return fail(404, { error: 'Order not found' });
+		}
+
+		return { success: true, message: 'Order deleted successfully' };
+	}
 };
 
 

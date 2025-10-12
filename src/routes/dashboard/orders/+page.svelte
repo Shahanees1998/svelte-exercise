@@ -2,9 +2,19 @@
 	import type { PageData } from './$types';
 	import { goto } from '$app/navigation';
 	import { page } from '$app/stores';
-	import type { Order } from '$lib/server/data';
+	import { enhance } from '$app/forms';
+	import type { Order } from '$lib/types';
 	import { toast } from '$lib/stores/toast.svelte';
 	import Dialog from '$lib/components/ui/Dialog.svelte';
+	import PageHeader from '$lib/components/ui/PageHeader.svelte';
+	import SearchBar from '$lib/components/ui/SearchBar.svelte';
+	import DataTable from '$lib/components/ui/DataTable.svelte';
+	import ActionButtons from '$lib/components/ui/ActionButtons.svelte';
+	import StatusBadge from '$lib/components/ui/StatusBadge.svelte';
+	import ConfirmDialog from '$lib/components/ui/ConfirmDialog.svelte';
+	import Pagination from '$lib/components/ui/Pagination.svelte';
+	import { orderColumns } from '$lib/utils/tableConfigs';
+	import { formatPrice } from '$lib/utils/formatters';
 	
 	let { data }: { data: PageData } = $props();
 	
@@ -12,29 +22,27 @@
 	let showDeleteDialog = $state(false);
 	let selectedOrder = $state<Order | null>(null);
 	
-	function handleSearch(e: Event) {
-		const form = e.target as HTMLFormElement;
-		const formData = new FormData(form);
-		const search = formData.get('search') as string;
-		const status = formData.get('status') as string;
-		
+	function handleFormSuccess(message?: string) {
+		showDeleteDialog = false;
+		selectedOrder = null;
+		toast.success(message || 'Operation successful');
+	}
+	
+	function handleFormError(error: string) {
+		toast.error(error);
+	}
+	
+	function handleSearch(search: string) {
 		const url = new URL($page.url);
 		if (search) {
 			url.searchParams.set('search', search);
 		} else {
 			url.searchParams.delete('search');
 		}
-		
-		if (status) {
-			url.searchParams.set('status', status);
-		} else {
-			url.searchParams.delete('status');
-		}
-		
 		goto(url.toString(), { keepFocus: true, noScroll: true });
 	}
 	
-	function clearFilters() {
+	function clearSearch() {
 		goto('/dashboard/orders', { keepFocus: true, noScroll: true });
 	}
 	
@@ -47,137 +55,78 @@
 		selectedOrder = order;
 		showDeleteDialog = true;
 	}
-	
-	function handleDeleteOrder() {
-		if (!selectedOrder) return;
-		
-		// In a real app, this would call an API endpoint
-		showDeleteDialog = false;
-		toast.success('Order deleted successfully');
-		goto($page.url.toString(), { invalidateAll: true });
-	}
-	
-	function formatPrice(price: number) {
-		return `$${price.toFixed(2)}`;
-	}
-	
-	function getStatusColor(status: string) {
-		const colors: Record<string, string> = {
-			pending: 'status-pending',
-			processing: 'status-processing',
-			shipped: 'status-shipped',
-			delivered: 'status-delivered',
-			cancelled: 'status-cancelled'
-		};
-		return colors[status] || '';
-	}
 </script>
 
 <svelte:head>
 	<title>Orders - Dashboard</title>
 </svelte:head>
 
-<div class="page-header">
-	<div>
-		<h1>Orders</h1>
-		<p>Manage customer orders</p>
-	</div>
-</div>
+<PageHeader 
+	title="Orders" 
+	description="Manage customer orders"
+/>
 
-<!-- Search & Filter Form -->
-<form class="search-section" onsubmit={handleSearch}>
-	<div class="filter-container">
-		<input
-			type="search"
-			name="search"
-			class="form-input"
-			placeholder="Search orders..."
-			value={data.search}
-			style="flex: 1; max-width: 400px;"
-		/>
-		
-		<select name="status" class="form-select" value={data.statusFilter}>
-			<option value="">All Status</option>
-			<option value="pending">Pending</option>
-			<option value="processing">Processing</option>
-			<option value="shipped">Shipped</option>
-			<option value="delivered">Delivered</option>
-			<option value="cancelled">Cancelled</option>
-		</select>
-		
-		<button type="submit" class="btn btn-primary btn-sm">
-			🔍 Filter
-		</button>
-		
-		{#if data.search || data.statusFilter}
-			<button type="button" class="btn btn-secondary btn-sm" onclick={clearFilters}>
-				Clear
-			</button>
-		{/if}
-	</div>
-</form>
+<SearchBar 
+	searchValue={data.search}
+	placeholder="Search orders..."
+	onSearch={handleSearch}
+	onClear={clearSearch}
+/>
 
-<!-- Orders Table -->
-<div class="card">
-	{#if data.orders.length === 0}
-		<div class="empty-state">
-			<div class="empty-icon">🛒</div>
-			<h3>No orders found</h3>
-			<p>{data.search || data.statusFilter ? 'Try adjusting your filters' : 'No orders yet'}</p>
-		</div>
-	{:else}
-		<div class="table-container">
-			<table class="data-table">
-				<thead>
-					<tr>
-						<th>Order #</th>
-						<th>Customer</th>
-						<th>Items</th>
-						<th>Total</th>
-						<th>Status</th>
-						<th>Payment</th>
-						<th>Date</th>
-						<th>Actions</th>
-					</tr>
-				</thead>
-				<tbody>
-					{#each data.orders as order (order.id)}
-						<tr>
-							<td><strong>{order.orderNumber}</strong></td>
-							<td>
-								<div>{order.customerName}</div>
-								<div style="font-size: 0.85em; color: var(--color-text-secondary);">{order.customerEmail}</div>
-							</td>
-							<td>{order.items.length} item(s)</td>
-							<td><strong>{formatPrice(order.totalAmount)}</strong></td>
-							<td><span class="badge {getStatusColor(order.status)}">{order.status}</span></td>
-							<td><span class="badge">{order.paymentStatus}</span></td>
-							<td>{order.createdAt}</td>
-							<td>
-								<div class="flex gap-sm">
-									<button 
-										class="btn btn-sm btn-info" 
-										onclick={() => openDetailsDialog(order)}
-									>
-										👁️ View
-									</button>
-									<button 
-										class="btn btn-sm btn-danger" 
-										onclick={() => openDeleteDialog(order)}
-									>
-										🗑️
-									</button>
-								</div>
-							</td>
-						</tr>
-					{/each}
-				</tbody>
-			</table>
-		</div>
-	{/if}
-</div>
+<DataTable 
+	columns={orderColumns}
+	data={data.orders}
+	keyField="id"
+	emptyMessage="No orders found"
+	emptyIcon="🛒"
+	emptyDescription={data.search ? 'Try a different search term' : 'No orders yet'}
+>
+	{#snippet rowSnippet(order)}
+		<tr>
+			<td><strong>{order.orderNumber}</strong></td>
+			<td>
+				<div>{order.customerName}</div>
+				<div style="font-size: 0.85em; color: var(--color-text-secondary);">{order.customerEmail}</div>
+			</td>
+			<td>{order.items.length} item(s)</td>
+			<td><strong>{formatPrice(order.totalAmount)}</strong></td>
+			<td><StatusBadge status={order.status} type="status" /></td>
+			<td><StatusBadge status={order.paymentStatus} type="payment" /></td>
+			<td>{order.createdAt}</td>
+			<td>
+				<ActionButtons 
+					actions={[
+						{
+							label: "View",
+							icon: "👁️",
+							variant: "info",
+							onclick: () => openDetailsDialog(order),
+							'aria-label': `View order ${order.orderNumber}`
+						},
+						{
+							label: "Delete",
+							icon: "🗑️",
+							variant: "danger",
+							onclick: () => openDeleteDialog(order),
+							'aria-label': `Delete order ${order.orderNumber}`
+						}
+					]}
+				/>
+			</td>
+		</tr>
+	{/snippet}
+</DataTable>
 
-<!-- Order Details Dialog -->
+{#if data.pagination.totalPages > 1}
+	<Pagination 
+		currentPage={data.pagination.currentPage}
+		totalPages={data.pagination.totalPages}
+		totalItems={data.pagination.totalItems}
+		itemsPerPage={data.pagination.itemsPerPage}
+		itemName="orders"
+	/>
+{/if}
+
 <Dialog bind:open={showDetailsDialog} title="Order Details">
 	{#snippet children()}
 		{#if selectedOrder}
@@ -195,11 +144,11 @@
 						</div>
 						<div>
 							<strong>Status:</strong>
-							<div><span class="badge {getStatusColor(selectedOrder.status)}">{selectedOrder.status}</span></div>
+							<div><StatusBadge status={selectedOrder.status} type="status" /></div>
 						</div>
 						<div>
 							<strong>Payment:</strong>
-							<div><span class="badge">{selectedOrder.paymentStatus}</span></div>
+							<div><StatusBadge status={selectedOrder.paymentStatus} type="payment" /></div>
 						</div>
 					</div>
 				</div>
@@ -256,140 +205,15 @@
 	{/snippet}
 </Dialog>
 
-<!-- Delete Order Dialog -->
-<Dialog bind:open={showDeleteDialog} title="Delete Order">
-	{#snippet children()}
-		<p>Are you sure you want to delete order <strong>{selectedOrder?.orderNumber}</strong>?</p>
-		<p>This action cannot be undone.</p>
-		
-		<div class="dialog-footer">
-			<button class="btn btn-secondary" onclick={() => showDeleteDialog = false}>
-				Cancel
-			</button>
-			<button class="btn btn-danger" onclick={handleDeleteOrder}>
-				Delete Order
-			</button>
-		</div>
-	{/snippet}
-</Dialog>
-
-<style>
-	.page-header {
-		display: flex;
-		justify-content: space-between;
-		align-items: flex-start;
-		margin-bottom: var(--space-xl);
-	}
-	
-	.page-header h1 {
-		margin-bottom: var(--space-xs);
-	}
-	
-	.page-header p {
-		color: var(--color-text-secondary);
-		margin: 0;
-	}
-	
-	.search-section {
-		margin-bottom: var(--space-xl);
-	}
-	
-	.filter-container {
-		display: flex;
-		gap: var(--space-sm);
-		flex-wrap: wrap;
-	}
-	
-	.empty-state {
-		text-align: center;
-		padding: var(--space-2xl) var(--space-xl);
-		color: var(--color-text-secondary);
-	}
-	
-	.empty-icon {
-		font-size: 4rem;
-		margin-bottom: var(--space-md);
-		opacity: 0.5;
-	}
-	
-	.empty-state h3 {
-		margin-bottom: var(--space-sm);
-		color: var(--color-text-primary);
-	}
-	
-	.order-details {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-xl);
-	}
-	
-	.detail-section {
-		border-bottom: 1px solid var(--color-border-light);
-		padding-bottom: var(--space-lg);
-	}
-	
-	.detail-section:last-child {
-		border-bottom: none;
-		padding-bottom: 0;
-	}
-	
-	.detail-section h3 {
-		margin-bottom: var(--space-md);
-		font-size: var(--font-size-lg);
-	}
-	
-	.detail-grid {
-		display: grid;
-		grid-template-columns: repeat(2, 1fr);
-		gap: var(--space-md);
-	}
-	
-	.detail-grid strong {
-		color: var(--color-text-secondary);
-		font-size: var(--font-size-sm);
-		font-weight: 600;
-	}
-	
-	.items-list {
-		display: flex;
-		flex-direction: column;
-		gap: var(--space-sm);
-		background-color: var(--color-bg-tertiary);
-		padding: var(--space-md);
-		border-radius: var(--radius-md);
-	}
-	
-	.item-row {
-		display: flex;
-		justify-content: space-between;
-		align-items: center;
-		padding: var(--space-sm);
-		background-color: var(--color-bg-primary);
-		border-radius: var(--radius-sm);
-	}
-	
-	.total-row {
-		display: flex;
-		justify-content: space-between;
-		padding: var(--space-sm);
-		border-top: 2px solid var(--color-border-medium);
-		margin-top: var(--space-sm);
-		font-size: var(--font-size-lg);
-	}
-	
-	@media (max-width: 768px) {
-		.filter-container {
-			flex-direction: column;
-		}
-		
-		.filter-container input,
-		.filter-container select {
-			width: 100%;
-			max-width: none !important;
-		}
-		
-		.detail-grid {
-			grid-template-columns: 1fr;
-		}
-	}
-</style>
+<ConfirmDialog 
+	bind:open={showDeleteDialog}
+	title="Delete Order"
+	message="Are you sure you want to delete this order?"
+	itemName={selectedOrder?.orderNumber}
+	itemId={selectedOrder?.id}
+	action="?/delete"
+	confirmLabel="Delete Order"
+	onCancel={() => showDeleteDialog = false}
+	onSuccess={handleFormSuccess}
+	onError={handleFormError}
+/>
